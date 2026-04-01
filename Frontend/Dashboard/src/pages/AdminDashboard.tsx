@@ -1,665 +1,915 @@
-import { useState } from "react";
-import type { AuthUser } from "../types";
+import { useState, useEffect } from "react";
 
-interface AdminDashboardProps {
-  user: AuthUser;
-  onLogout: () => void;
+// ─── Responsive hook ─────────────────────────────────────────────────────────
+function useBreakpoint() {
+  const [w, setW] = useState(typeof window !== "undefined" ? window.innerWidth : 1024);
+  useEffect(() => {
+    const fn = () => setW(window.innerWidth);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
+  return { isMobile: w < 640, isTablet: w >= 640 && w < 1024, isDesktop: w >= 1024, w };
 }
 
-// ── Sparkline ─────────────────────────────────────────────────────────────────
-function Sparkline({ data, color }: { data: number[]; color: string }) {
-  const max = Math.max(...data), min = Math.min(...data);
-  const w = 100, h = 40;
-  const pts = data
-    .map((v, i) => {
-      const x = (i / (data.length - 1)) * w;
-      const y = h - ((v - min) / (max - min || 1)) * (h - 6) - 3;
-      return `${x},${y}`;
-    })
-    .join(" ");
-  return (
-    <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
-      <polyline points={pts} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-// ── Donut chart ───────────────────────────────────────────────────────────────
-function DonutChart({ segments }: { segments: { value: number; color: string; label: string }[] }) {
-  const total = segments.reduce((s, x) => s + x.value, 0);
-  let offset = -90;
-  const r = 36, cx = 44, cy = 44;
-  const circumference = 2 * Math.PI * r;
-  const arcs = segments.map((seg) => {
-    const frac = seg.value / total;
-    const dash = frac * circumference;
-    const gap = circumference - dash;
-    const rot = offset;
-    offset += frac * 360;
-    return { ...seg, dash, gap, rot };
-  });
-  return (
-    <svg width="88" height="88" viewBox="0 0 88 88">
-      {arcs.map((a, i) => (
-        <circle
-          key={i}
-          cx={cx} cy={cy} r={r}
-          fill="none"
-          stroke={a.color}
-          strokeWidth="10"
-          strokeDasharray={`${a.dash} ${a.gap}`}
-          strokeDashoffset={0}
-          transform={`rotate(${a.rot} ${cx} ${cy})`}
-          strokeLinecap="round"
-        />
-      ))}
-      <circle cx={cx} cy={cy} r={26} fill="#161b27" />
-    </svg>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// DATA
-// ─────────────────────────────────────────────────────────────────────────────
-const REVENUE_DATA  = [32, 45, 38, 60, 52, 70, 65, 80, 74, 90, 84, 95];
-const USERS_DATA    = [120, 145, 138, 160, 175, 190, 185, 210, 200, 230, 220, 245];
-const TRAFFIC_DATA  = [800, 950, 870, 1100, 980, 1250, 1180, 1400, 1320, 1500, 1450, 1600];
-const ORDERS_DATA   = [18, 24, 20, 30, 26, 35, 32, 40, 37, 45, 42, 50];
-
-const STATS = [
-  { label: "Total Revenue",  value: "$84,320", change: "+12.5%", up: true,  data: REVENUE_DATA,  color: "#6ee7b7", accent: "#10b981" },
-  { label: "New Users",      value: "24,521",  change: "+8.2%",  up: true,  data: USERS_DATA,    color: "#93c5fd", accent: "#3b82f6" },
-  { label: "Page Views",     value: "1.6M",    change: "+18.4%", up: true,  data: TRAFFIC_DATA,  color: "#fcd34d", accent: "#f59e0b" },
-  { label: "Orders",         value: "3,842",   change: "-3.1%",  up: false, data: ORDERS_DATA,   color: "#f9a8d4", accent: "#ec4899" },
-];
-
-const ALL_USERS = [
-  { name: "Alice Johnson",  email: "alice@co.com",  role: "Admin",   status: "Active",   joined: "Jan 12", av: "AJ", color: "#6366f1" },
-  { name: "Bob Martinez",   email: "bob@co.com",    role: "Editor",  status: "Active",   joined: "Feb 3",  av: "BM", color: "#10b981" },
-  { name: "Carol White",    email: "carol@co.com",  role: "Viewer",  status: "Inactive", joined: "Feb 19", av: "CW", color: "#f59e0b" },
-  { name: "David Lee",      email: "david@co.com",  role: "Editor",  status: "Active",   joined: "Mar 1",  av: "DL", color: "#0ea5e9" },
-  { name: "Eva Brown",      email: "eva@co.com",    role: "Viewer",  status: "Active",   joined: "Mar 8",  av: "EB", color: "#ec4899" },
-  { name: "Frank Kim",      email: "frank@co.com",  role: "Admin",   status: "Active",   joined: "Mar 15", av: "FK", color: "#8b5cf6" },
-  { name: "Grace Chen",     email: "grace@co.com",  role: "Editor",  status: "Inactive", joined: "Mar 20", av: "GC", color: "#14b8a6" },
-  { name: "Henry Park",     email: "henry@co.com",  role: "Viewer",  status: "Active",   joined: "Mar 22", av: "HP", color: "#f97316" },
-];
-
-const REPORTS = [
-  { title: "Q1 Revenue Report",       date: "Mar 31", size: "2.4 MB", type: "PDF",   status: "Ready",      color: "#10b981" },
-  { title: "User Growth Analysis",    date: "Mar 28", size: "1.1 MB", type: "XLSX",  status: "Ready",      color: "#3b82f6" },
-  { title: "Traffic Overview",        date: "Mar 25", size: "890 KB", type: "PDF",   status: "Processing", color: "#f59e0b" },
-  { title: "Conversion Funnel",       date: "Mar 20", size: "3.2 MB", type: "PDF",   status: "Ready",      color: "#10b981" },
-  { title: "Marketing Performance",   date: "Mar 15", size: "1.8 MB", type: "XLSX",  status: "Ready",      color: "#3b82f6" },
-  { title: "Infrastructure Costs",    date: "Mar 10", size: "560 KB", type: "CSV",   status: "Archived",   color: "#6b7280" },
-];
-
-const DONUT_SEGMENTS = [
-  { value: 45, color: "#6366f1", label: "Direct" },
-  { value: 30, color: "#10b981", label: "Organic" },
-  { value: 15, color: "#f59e0b", label: "Referral" },
-  { value: 10, color: "#ec4899", label: "Social" },
-];
-
-const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-
-// ─────────────────────────────────────────────────────────────────────────────
-// STYLES HELPERS
-// ─────────────────────────────────────────────────────────────────────────────
-const S = {
-  page: {
-    display: "flex" as const,
-    minHeight: "100vh",
-    background: "#0d1117",
-    fontFamily: "'Segoe UI', system-ui, sans-serif",
-    color: "white",
-  },
-  sidebar: {
-    width: 220,
-    minHeight: "100vh",
-    position: "sticky" as const,
-    top: 0,
-    display: "flex" as const,
-    flexDirection: "column" as const,
-    background: "#0d1117",
-    borderRight: "1px solid rgba(255,255,255,0.07)",
-    flexShrink: 0,
-  },
-  main: {
-    flex: 1,
-    overflowY: "auto" as const,
-    minWidth: 0,
-  },
+// ─── Color tokens ─────────────────────────────────────────────────────────────
+const C = {
+  bg: "#f5f7fa", sidebar: "#ffffff", card: "#ffffff",
+  border: "#e8ecf0", borderLight: "#f0f3f6",
+  text: "#1a2332", muted: "#6b7a8d", faint: "#a8b4c0",
+  primary: "#2563eb", primaryLight: "#eff4ff", primaryBorder: "#bfccfd",
+  green: "#16a34a", greenBg: "#f0fdf4", greenBorder: "#86efac",
+  red: "#dc2626", redBg: "#fff5f5", redBorder: "#fca5a5",
+  amber: "#d97706", amberBg: "#fffbeb", amberBorder: "#fcd34d",
+  purple: "#7c3aed", purpleBg: "#f5f3ff",
+  teal: "#0d9488", tealBg: "#f0fdfa",
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// COMPONENT
-// ─────────────────────────────────────────────────────────────────────────────
-export default function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
-  const [activePage, setActivePage] = useState<"dashboard" | "users" | "reports" | "settings">("dashboard");
-  const [searchUsers, setSearchUsers] = useState("");
-  const [filterRole, setFilterRole] = useState("All");
-  const [settingsTab, setSettingsTab] = useState<"profile" | "security" | "notifications">("profile");
-  const [notifEmail, setNotifEmail] = useState(true);
-  const [notifPush, setNotifPush]   = useState(false);
-  const [notifSMS, setNotifSMS]     = useState(true);
-  const [darkMode, setDarkMode]     = useState(true);
-  const [twoFA, setTwoFA]           = useState(false);
+const card = { background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "16px 18px" };
 
-  const navItems = [
-    { id: "dashboard", label: "Dashboard",  icon: DashIcon },
-    { id: "users",     label: "Users",      icon: UsersIcon,  badge: ALL_USERS.filter(u => u.status === "Active").length },
-    { id: "reports",   label: "Reports",    icon: ReportIcon, badge: REPORTS.filter(r => r.status === "Ready").length },
-    { id: "settings",  label: "Settings",   icon: SettingsIcon },
-  ];
+const badge = (color, bg, border) => ({
+  fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 20,
+  color, background: bg, border: `1px solid ${border}`, whiteSpace: "nowrap", display: "inline-block",
+});
 
-  const filteredUsers = ALL_USERS.filter(u => {
-    const q = searchUsers.toLowerCase();
-    const matchSearch = u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
-    const matchRole = filterRole === "All" || u.role === filterRole;
-    return matchSearch && matchRole;
-  });
+const btn = (variant = "primary", small = false) => ({
+  padding: small ? "6px 12px" : "8px 16px", borderRadius: 7,
+  fontSize: small ? 11 : 12, fontWeight: 600, cursor: "pointer",
+  border: variant === "primary" ? "none" : `1px solid ${C.border}`,
+  background: variant === "primary" ? C.primary : C.card,
+  color: variant === "primary" ? "white" : C.text,
+  display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap",
+});
+
+function MiniBar({ data, color }) {
+  const max = Math.max(...data);
+  return (
+    <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 32 }}>
+      {data.map((v, i) => (
+        <div key={i} style={{ flex: 1, borderRadius: "2px 2px 0 0", height: `${Math.max(10, (v / max) * 100)}%`, background: i === data.length - 1 ? color : `${color}44` }} />
+      ))}
+    </div>
+  );
+}
+
+function Toggle({ value, onChange }) {
+  return (
+    <button onClick={() => onChange(!value)} style={{ width: 42, height: 24, borderRadius: 12, border: "none", cursor: "pointer", background: value ? C.primary : "#cbd5e1", position: "relative", transition: "background 0.2s", flexShrink: 0 }}>
+      <div style={{ position: "absolute", top: 4, width: 16, height: 16, borderRadius: "50%", background: "white", transition: "left 0.2s", left: value ? 22 : 4, boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
+    </button>
+  );
+}
+
+function NavIcon({ id, size = 16 }) {
+  const s = size;
+  const icons = {
+    overview: <svg width={s} height={s} viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>,
+    invoices: <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>,
+    tax: <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M9 9h.01M15 15h.01M16 8l-8 8"/></svg>,
+    vendors: <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>,
+    bank: <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/><line x1="12" y1="15" x2="12" y2="17"/></svg>,
+    accounting: <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg>,
+    settings: <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>,
+    menu: <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>,
+    close: <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+    logout: <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
+  };
+  return icons[id] || null;
+}
+
+// ═══ DATA ════════════════════════════════════════════════════════════════════
+const INVOICES = [
+  { id: "INV-001", vendor: "AWS India Pvt Ltd", date: "Mar 28", due: "Apr 27", amount: 48200, gst: 8676, status: "Pending", category: "Cloud" },
+  { id: "INV-002", vendor: "Razorpay Solutions", date: "Mar 25", due: "Apr 24", amount: 12500, gst: 2250, status: "Paid", category: "Payment GW" },
+  { id: "INV-003", vendor: "Google Workspace", date: "Mar 20", due: "Apr 19", amount: 6800, gst: 1224, status: "Paid", category: "SaaS" },
+  { id: "INV-004", vendor: "Zoho Corporation", date: "Mar 15", due: "Apr 14", amount: 9500, gst: 1710, status: "Overdue", category: "SaaS" },
+  { id: "INV-005", vendor: "Freshworks Inc", date: "Mar 10", due: "Apr 9", amount: 15000, gst: 2700, status: "Pending", category: "CRM" },
+  { id: "INV-006", vendor: "Infosys BPM Ltd", date: "Mar 5", due: "Apr 4", amount: 85000, gst: 15300, status: "Paid", category: "Services" },
+  { id: "INV-007", vendor: "Digital Ocean LLC", date: "Feb 28", due: "Mar 29", amount: 22400, gst: 4032, status: "Overdue", category: "Cloud" },
+];
+
+const VENDORS = [
+  { name: "AWS India Pvt Ltd", gstin: "29AABCA1234B1Z5", type: "Cloud Provider", outstanding: 48200, invoices: 12 },
+  { name: "Razorpay Solutions", gstin: "29AABCR5678C1Z2", type: "FinTech", outstanding: 0, invoices: 8 },
+  { name: "Google Workspace", gstin: "27AAACG0569G1ZF", type: "SaaS", outstanding: 0, invoices: 6 },
+  { name: "Zoho Corporation", gstin: "33AABCZ3456D1Z1", type: "SaaS", outstanding: 9500, invoices: 15 },
+  { name: "Infosys BPM Ltd", gstin: "29AACCI0782C1ZF", type: "Services", outstanding: 0, invoices: 3 },
+  { name: "Digital Ocean LLC", gstin: "N/A (Import)", type: "Cloud Provider", outstanding: 22400, invoices: 5 },
+];
+
+const GST_SUMMARY = [
+  { period: "Mar 2024", igst: 24892, cgst: 8450, sgst: 8450, total: 41792, filed: false },
+  { period: "Feb 2024", igst: 18300, cgst: 7200, sgst: 7200, total: 32700, filed: true },
+  { period: "Jan 2024", igst: 21600, cgst: 9100, sgst: 9100, total: 39800, filed: true },
+  { period: "Dec 2023", igst: 19450, cgst: 8600, sgst: 8600, total: 36650, filed: true },
+];
+
+const BANK_TXN = [
+  { date: "Mar 29", desc: "NEFT - Infosys BPM Payment", ref: "NEFT01", type: "Credit", amount: 85000, matched: true },
+  { date: "Mar 28", desc: "IMPS - AWS India Bill Pay", ref: "IMPS01", type: "Debit", amount: 56876, matched: true },
+  { date: "Mar 27", desc: "UPI - Office Rent Q1", ref: "UPI01", type: "Debit", amount: 45000, matched: false },
+  { date: "Mar 26", desc: "NEFT - Salary Mar Batch", ref: "NEFT02", type: "Debit", amount: 240000, matched: true },
+  { date: "Mar 25", desc: "RTGS - Client XYZ Advance", ref: "RTGS01", type: "Credit", amount: 500000, matched: false },
+  { date: "Mar 24", desc: "IMPS - Google Workspace", ref: "IMPS02", type: "Debit", amount: 8024, matched: true },
+];
+
+const fmt = (n) => "₹" + n.toLocaleString("en-IN");
+
+const statusBadge = (status) => badge(
+  status === "Paid" ? C.green : status === "Overdue" ? C.red : C.amber,
+  status === "Paid" ? C.greenBg : status === "Overdue" ? C.redBg : C.amberBg,
+  status === "Paid" ? C.greenBorder : status === "Overdue" ? C.redBorder : C.amberBorder,
+);
+
+function ScrollTable({ children }) {
+  return (
+    <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+      <table style={{ width: "100%", minWidth: 580, borderCollapse: "collapse" }}>{children}</table>
+    </div>
+  );
+}
+const TH = ({ children, right }) => (
+  <th style={{ padding: "10px 14px", textAlign: right ? "right" : "left", fontSize: 10, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap" }}>{children}</th>
+);
+
+function StatCard({ label, value, sub, color, data }) {
+  return (
+    <div style={{ ...card, display: "flex", flexDirection: "column", gap: 7 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.07em" }}>{label}</div>
+      <div style={{ fontSize: 20, fontWeight: 800, color: C.text }}>{value}</div>
+      {sub && <div style={{ fontSize: 11, color: C.muted }}>{sub}</div>}
+      {data && <MiniBar data={data} color={color} />}
+    </div>
+  );
+}
+
+// ═══ PAGES ═══════════════════════════════════════════════════════════════════
+
+function OverviewPage({ bp }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ borderRadius: 10, padding: "14px 16px", background: "linear-gradient(135deg,#eff4ff,#f0fdfa)", border: `1px solid ${C.primaryBorder}` }}>
+        <div style={{ fontWeight: 700, fontSize: bp.isMobile ? 15 : 17, color: C.text }}>Hello, Ravi! 👋</div>
+        <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>GST return due in <strong style={{ color: C.amber }}>21 days</strong>. Books are open for Mar 2024.</div>
+        {bp.isMobile && (
+          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+            <button style={{ ...btn("outline", true), flex: 1, justifyContent: "center" }}>+ Expense</button>
+            <button style={{ ...btn("primary", true), flex: 1, justifyContent: "center" }}>+ Invoice</button>
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: bp.isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap: 10 }}>
+        <StatCard label="Total Payables" value={fmt(183400)} sub="5 open invoices" color={C.red} data={[40,55,48,70,60,80,75,95,88,110,100,120]} />
+        <StatCard label="GST Liability" value={fmt(41792)} sub="Due Apr 20" color={C.amber} data={[28,35,32,40,36,45,42,50,46,55,48,58]} />
+        <StatCard label="Vendors" value="6" sub="2 with outstanding" color={C.primary} data={[4,4,5,5,5,6,6,6,6,6,6,6]} />
+        <StatCard label="Reconciled" value="83%" sub="5 of 6 matched" color={C.green} data={[60,65,70,68,75,72,78,80,77,85,82,83]} />
+      </div>
+
+      <div style={{ ...card, padding: 0, overflow: "hidden" }}>
+        <div style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}`, fontWeight: 700, fontSize: 13, color: C.text }}>Recent Invoices</div>
+        {bp.isMobile ? (
+          INVOICES.slice(0, 4).map((inv, i) => (
+            <div key={i} style={{ padding: "13px 16px", borderBottom: i < 3 ? `1px solid ${C.borderLight}` : "none" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{inv.vendor}</div>
+                <span style={statusBadge(inv.status)}>{inv.status}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <div style={{ fontSize: 11, color: C.faint }}>{inv.id} · Due {inv.due}</div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: C.text }}>{fmt(inv.amount)}</div>
+              </div>
+            </div>
+          ))
+        ) : (
+          <ScrollTable>
+            <thead><tr style={{ background: "#fafbfc", borderBottom: `1px solid ${C.border}` }}><TH>Vendor</TH><TH>Invoice</TH><TH>Amount</TH><TH>Status</TH></tr></thead>
+            <tbody>
+              {INVOICES.slice(0, 5).map((inv, i) => (
+                <tr key={i} style={{ borderBottom: `1px solid ${C.borderLight}` }}>
+                  <td style={{ padding: "11px 14px", fontSize: 13, fontWeight: 600, color: C.text }}>{inv.vendor}</td>
+                  <td style={{ padding: "11px 14px", fontSize: 12, color: C.faint }}>{inv.id} · {inv.date}</td>
+                  <td style={{ padding: "11px 14px", fontSize: 13, fontWeight: 700, color: C.text }}>{fmt(inv.amount)}</td>
+                  <td style={{ padding: "11px 14px" }}><span style={statusBadge(inv.status)}>{inv.status}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </ScrollTable>
+        )}
+      </div>
+
+      <div style={{ ...card }}>
+        <div style={{ fontWeight: 700, fontSize: 13, color: C.text, marginBottom: 10 }}>GST Summary — Mar 2024</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8 }}>
+          {[["IGST", fmt(24892), C.primary], ["CGST", fmt(8450), C.teal], ["SGST", fmt(8450), C.purple], ["Total", fmt(41792), C.red]].map(([l, v, color]) => (
+            <div key={l} style={{ textAlign: "center", padding: "10px 4px", borderRadius: 8, background: C.bg, border: `1px solid ${C.border}` }}>
+              <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, marginBottom: 4 }}>{l}</div>
+              <div style={{ fontSize: bp.isMobile ? 11 : 13, fontWeight: 800, color }}>{v}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InvoicesPage({ bp }) {
+  const [filter, setFilter] = useState("All");
+  const filtered = filter === "All" ? INVOICES : INVOICES.filter(i => i.status === filter);
 
   return (
-    <div style={S.page}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: bp.isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap: 10 }}>
+        {[
+          { label: "Total", val: INVOICES.length, color: C.primary },
+          { label: "Pending", val: fmt(INVOICES.filter(i=>i.status==="Pending").reduce((s,i)=>s+i.amount,0)), color: C.amber },
+          { label: "Overdue", val: fmt(INVOICES.filter(i=>i.status==="Overdue").reduce((s,i)=>s+i.amount,0)), color: C.red },
+          { label: "Paid", val: fmt(INVOICES.filter(i=>i.status==="Paid").reduce((s,i)=>s+i.amount,0)), color: C.green },
+        ].map((s,i) => (
+          <div key={i} style={{ ...card, padding: "12px 14px" }}>
+            <div style={{ fontSize: 10, color: C.muted, textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600, marginBottom: 4 }}>{s.label}</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: s.color }}>{s.val}</div>
+          </div>
+        ))}
+      </div>
 
-      {/* ── SIDEBAR ────────────────────────────────────────────────────── */}
-      <aside style={S.sidebar}>
-        {/* Logo */}
-        <div style={{ padding: "20px 16px 16px", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 34, height: 34, borderRadius: 10, background: "linear-gradient(135deg,#6366f1,#0ea5e9)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 16 }}>A</div>
-            <div>
-              <div style={{ fontWeight: 800, fontSize: 14, letterSpacing: "-0.3px" }}>AdminPanel</div>
-              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", marginTop: 1 }}>v2.0 Pro</div>
+      <div style={{ display: "flex", gap: 6, overflowX: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 2 }}>
+        {["All","Pending","Paid","Overdue"].map(f => (
+          <button key={f} onClick={() => setFilter(f)} style={{ padding: "7px 14px", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0, border: `1px solid ${filter===f?C.primary:C.border}`, background: filter===f?C.primaryLight:"transparent", color: filter===f?C.primary:C.muted }}>{f}</button>
+        ))}
+        <button style={{ ...btn("primary", true), flexShrink: 0, marginLeft: "auto" }}>+ New</button>
+      </div>
+
+      <div style={{ ...card, padding: 0, overflow: "hidden" }}>
+        {bp.isMobile ? (
+          filtered.length === 0
+            ? <div style={{ padding: 32, textAlign: "center", color: C.faint, fontSize: 13 }}>No invoices found.</div>
+            : filtered.map((inv, i) => (
+              <div key={i} style={{ padding: "14px 16px", borderBottom: i < filtered.length-1 ? `1px solid ${C.borderLight}` : "none" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{inv.vendor}</div>
+                    <div style={{ fontSize: 11, color: C.faint, marginTop: 2 }}>{inv.id} · Due {inv.due}</div>
+                  </div>
+                  <span style={statusBadge(inv.status)}>{inv.status}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={badge(C.purple, C.purpleBg, "#c4b5fd")}>{inv.category}</span>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: C.text }}>{fmt(inv.amount)}</div>
+                    <div style={{ fontSize: 10, color: C.faint }}>+GST {fmt(inv.gst)}</div>
+                  </div>
+                </div>
+              </div>
+            ))
+        ) : (
+          <ScrollTable>
+            <thead><tr style={{ background: "#fafbfc", borderBottom: `1px solid ${C.border}` }}><TH>Invoice #</TH><TH>Vendor</TH><TH>Category</TH><TH>Date</TH><TH>Amount</TH><TH>GST</TH><TH>Status</TH><TH>Action</TH></tr></thead>
+            <tbody>
+              {filtered.map((inv, i) => (
+                <tr key={i} style={{ borderBottom: `1px solid ${C.borderLight}` }}>
+                  <td style={{ padding:"11px 14px", fontSize:12, fontWeight:600, color:C.primary }}>{inv.id}</td>
+                  <td style={{ padding:"11px 14px", fontSize:13, fontWeight:600, color:C.text }}>{inv.vendor}</td>
+                  <td style={{ padding:"11px 14px" }}><span style={badge(C.purple,C.purpleBg,"#c4b5fd")}>{inv.category}</span></td>
+                  <td style={{ padding:"11px 14px", fontSize:12, color:C.muted }}>{inv.date}</td>
+                  <td style={{ padding:"11px 14px", fontSize:13, fontWeight:700, color:C.text }}>{fmt(inv.amount)}</td>
+                  <td style={{ padding:"11px 14px", fontSize:12, color:C.muted }}>{fmt(inv.gst)}</td>
+                  <td style={{ padding:"11px 14px" }}><span style={statusBadge(inv.status)}>{inv.status}</span></td>
+                  <td style={{ padding:"11px 14px" }}><button style={{ padding:"4px 10px", fontSize:11, fontWeight:600, borderRadius:5, cursor:"pointer", border:`1px solid ${C.primaryBorder}`, background:C.primaryLight, color:C.primary }}>Pay</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </ScrollTable>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TaxPage({ bp }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ borderRadius: 8, padding: "12px 16px", background: C.amberBg, border: `1px solid ${C.amberBorder}` }}>
+        <div style={{ display: "flex", alignItems: bp.isMobile ? "flex-start" : "center", gap: 10, flexDirection: bp.isMobile ? "column" : "row" }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>⚠️ GSTR-3B due April 20, 2024</div>
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>Total liability: ₹41,792 · Penalty: ₹50/day if late</div>
+          </div>
+          <button style={{ ...btn("primary", true), width: bp.isMobile ? "100%" : "auto", justifyContent: "center" }}>File Now</button>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: bp.isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap: 10 }}>
+        {[["ITC Available", fmt(38600), C.green], ["ITC Claimed", fmt(32400), C.primary], ["ITC Reversed", fmt(2800), C.red], ["Net Utilised", fmt(29600), C.teal]].map(([l,v,color]) => (
+          <div key={l} style={{ ...card, padding: "12px 14px" }}>
+            <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>{l}</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color }}>{v}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ ...card, padding: 0, overflow: "hidden" }}>
+        <div style={{ padding: "13px 16px", borderBottom: `1px solid ${C.border}`, fontWeight: 700, fontSize: 13, color: C.text }}>GST Filing History</div>
+        {GST_SUMMARY.map((g, i) => {
+          return (
+            <div key={i} style={{ padding: "14px 16px", borderBottom: i < GST_SUMMARY.length-1 ? `1px solid ${C.borderLight}` : "none" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <div style={{ fontWeight: 700, fontSize: 14, color: C.text }}>{g.period}</div>
+                <span style={badge(g.filed?C.green:C.amber, g.filed?C.greenBg:C.amberBg, g.filed?C.greenBorder:C.amberBorder)}>{g.filed ? "✓ Filed" : "Pending"}</span>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginBottom: !g.filed ? 10 : 0 }}>
+                {[["IGST",fmt(g.igst)],["CGST",fmt(g.cgst)],["SGST",fmt(g.sgst)],["Total",fmt(g.total)]].map(([l,v]) => (
+                  <div key={l}><div style={{ fontSize:10, color:C.faint }}>{l}</div><div style={{ fontSize:bp.isMobile?11:13, fontWeight:600, color:C.text }}>{v}</div></div>
+                ))}
+              </div>
+              {!g.filed && <button style={{ ...btn("primary", true), width: "100%", justifyContent: "center" }}>File Return</button>}
             </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function VendorsPage({ bp }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: bp.isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap: 10 }}>
+        {[
+          { label: "Total Vendors", val: VENDORS.length, color: C.primary },
+          { label: "With Outstanding", val: VENDORS.filter(v=>v.outstanding>0).length, color: C.red },
+          { label: "Total Outstanding", val: fmt(VENDORS.reduce((s,v)=>s+v.outstanding,0)), color: C.amber },
+          { label: "Total Invoices", val: VENDORS.reduce((s,v)=>s+v.invoices,0), color: C.teal },
+        ].map((s,i) => (
+          <div key={i} style={{ ...card, padding: "12px 14px" }}>
+            <div style={{ fontSize: 10, color: C.muted, textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600, marginBottom: 4 }}>{s.label}</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: s.color }}>{s.val}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        <button style={btn("primary", true)}>+ Add Vendor</button>
+      </div>
+      <div style={{ ...card, padding: 0, overflow: "hidden" }}>
+        {bp.isMobile ? (
+          VENDORS.map((v, i) => (
+            <div key={i} style={{ padding: "14px 16px", borderBottom: i < VENDORS.length-1 ? `1px solid ${C.borderLight}` : "none" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 5 }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{v.name}</div>
+                  <div style={{ fontSize: 10, color: C.faint, fontFamily: "monospace", marginTop: 2 }}>{v.gstin}</div>
+                </div>
+                <span style={badge(C.purple,C.purpleBg,"#c4b5fd")}>{v.type}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <div style={{ fontSize: 12, color: C.muted }}>{v.invoices} invoices</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: v.outstanding > 0 ? C.red : C.green }}>{v.outstanding > 0 ? fmt(v.outstanding) : "Nil"}</div>
+              </div>
+            </div>
+          ))
+        ) : (
+          <ScrollTable>
+            <thead><tr style={{ background: "#fafbfc", borderBottom: `1px solid ${C.border}` }}><TH>Vendor</TH><TH>GSTIN</TH><TH>Type</TH><TH>Invoices</TH><TH>Outstanding</TH><TH>Action</TH></tr></thead>
+            <tbody>
+              {VENDORS.map((v, i) => (
+                <tr key={i} style={{ borderBottom: `1px solid ${C.borderLight}` }}>
+                  <td style={{ padding:"12px 14px", fontSize:13, fontWeight:700, color:C.text }}>{v.name}</td>
+                  <td style={{ padding:"12px 14px", fontSize:11, fontFamily:"monospace", color:C.muted }}>{v.gstin}</td>
+                  <td style={{ padding:"12px 14px" }}><span style={badge(C.purple,C.purpleBg,"#c4b5fd")}>{v.type}</span></td>
+                  <td style={{ padding:"12px 14px", fontSize:13, fontWeight:600, color:C.text }}>{v.invoices}</td>
+                  <td style={{ padding:"12px 14px", fontSize:13, fontWeight:700, color:v.outstanding>0?C.red:C.green }}>{v.outstanding>0?fmt(v.outstanding):"Nil"}</td>
+                  <td style={{ padding:"12px 14px" }}><button style={{ padding:"4px 10px", fontSize:11, fontWeight:600, borderRadius:5, cursor:"pointer", border:`1px solid ${C.border}`, background:"white", color:C.text }}>View</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </ScrollTable>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function BankPage({ bp }) {
+  const unmatched = BANK_TXN.filter(t => !t.matched).length;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: bp.isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap: 10 }}>
+        {[
+          { label: "Transactions", val: BANK_TXN.length, color: C.primary },
+          { label: "Matched", val: BANK_TXN.filter(t=>t.matched).length, color: C.green },
+          { label: "Unmatched", val: unmatched, color: C.red },
+          { label: "Credits", val: fmt(BANK_TXN.filter(t=>t.type==="Credit").reduce((s,t)=>s+t.amount,0)), color: C.teal },
+        ].map((s,i) => (
+          <div key={i} style={{ ...card, padding: "12px 14px" }}>
+            <div style={{ fontSize: 10, color: C.muted, textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600, marginBottom: 4 }}>{s.label}</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: s.color }}>{s.val}</div>
+          </div>
+        ))}
+      </div>
+      {unmatched > 0 && (
+        <div style={{ borderRadius: 8, padding: "12px 16px", background: C.redBg, border: `1px solid ${C.redBorder}` }}>
+          <div style={{ fontSize: 13, color: C.text }}>🔴 <strong>{unmatched} unmatched</strong> transactions need attention.</div>
+        </div>
+      )}
+      <div style={{ ...card, padding: 0, overflow: "hidden" }}>
+        <div style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}` }}>
+          <div style={{ fontWeight: 700, fontSize: 13, color: C.text }}>HDFC Current A/C ****3421</div>
+          <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>Balance: ₹12,84,350</div>
+        </div>
+        {bp.isMobile ? (
+          BANK_TXN.map((t, i) => (
+            <div key={i} style={{ padding: "13px 16px", borderBottom: i < BANK_TXN.length-1 ? `1px solid ${C.borderLight}` : "none", background: !t.matched ? "#fffcf0" : "white" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 5 }}>
+                <div style={{ flex: 1, minWidth: 0, marginRight: 10 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.desc}</div>
+                  <div style={{ fontSize: 11, color: C.faint, marginTop: 2 }}>{t.date}</div>
+                </div>
+                <div style={{ textAlign: "right", flexShrink: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: t.type==="Credit"?C.green:C.text }}>{t.type==="Credit"?"+":"−"}{fmt(t.amount)}</div>
+                  <span style={badge(t.type==="Credit"?C.green:C.red, t.type==="Credit"?C.greenBg:C.redBg, t.type==="Credit"?C.greenBorder:C.redBorder)}>{t.type}</span>
+                </div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <div style={{ width: 6, height: 6, borderRadius: "50%", background: t.matched ? C.green : C.amber }} />
+                <span style={{ fontSize: 11, color: t.matched ? C.green : C.amber, fontWeight: 600 }}>{t.matched ? "Matched" : "Tap to match"}</span>
+              </div>
+            </div>
+          ))
+        ) : (
+          <ScrollTable>
+            <thead><tr style={{ background: "#fafbfc", borderBottom: `1px solid ${C.border}` }}><TH>Date</TH><TH>Description</TH><TH>Type</TH><TH right>Amount</TH><TH>Status</TH><TH>Action</TH></tr></thead>
+            <tbody>
+              {BANK_TXN.map((t, i) => (
+                <tr key={i} style={{ borderBottom: `1px solid ${C.borderLight}`, background: !t.matched ? "#fffcf0" : "white" }}>
+                  <td style={{ padding:"11px 14px", fontSize:12, color:C.muted }}>{t.date}</td>
+                  <td style={{ padding:"11px 14px", fontSize:13, fontWeight:600, color:C.text }}>{t.desc}</td>
+                  <td style={{ padding:"11px 14px" }}><span style={badge(t.type==="Credit"?C.green:C.red, t.type==="Credit"?C.greenBg:C.redBg, t.type==="Credit"?C.greenBorder:C.redBorder)}>{t.type}</span></td>
+                  <td style={{ padding:"11px 14px", textAlign:"right", fontSize:13, fontWeight:700, color:t.type==="Credit"?C.green:C.text }}>{t.type==="Credit"?"+":"−"}{fmt(t.amount)}</td>
+                  <td style={{ padding:"11px 14px" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                      <div style={{ width:6, height:6, borderRadius:"50%", background:t.matched?C.green:C.amber }} />
+                      <span style={{ fontSize:11, color:t.matched?C.green:C.amber, fontWeight:600 }}>{t.matched?"Matched":"Unmatched"}</span>
+                    </div>
+                  </td>
+                  <td style={{ padding:"11px 14px" }}><button style={{ padding:"4px 10px", fontSize:11, fontWeight:600, borderRadius:5, cursor:"pointer", border:`1px solid ${t.matched?C.border:C.amberBorder}`, background:t.matched?"white":C.amberBg, color:t.matched?C.text:C.amber }}>{t.matched?"View":"Match"}</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </ScrollTable>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AccountingPage({ bp }) {
+  const [sub, setSub] = useState("journal");
+  const journals = [
+    { date: "Mar 29", ref: "JE-088", narration: "AWS Invoice accrue Mar", debit: "Cloud Expenses", credit: "Accounts Payable", amount: 48200 },
+    { date: "Mar 28", ref: "JE-087", narration: "Salary payable Mar 2024", debit: "Salary Expenses", credit: "Salary Payable", amount: 240000 },
+    { date: "Mar 27", ref: "JE-086", narration: "Office rent Q1 2024", debit: "Rent Expenses", credit: "Bank Account", amount: 45000 },
+    { date: "Mar 26", ref: "JE-085", narration: "Depreciation — Laptops", debit: "Depr. Expense", credit: "Accumulated Depr.", amount: 8500 },
+  ];
+  const trial = [
+    { account: "Revenue", debit: 0, credit: 1280000 },
+    { account: "Cloud Expenses", debit: 190400, credit: 0 },
+    { account: "Salary Expenses", debit: 720000, credit: 0 },
+    { account: "Rent Expenses", debit: 135000, credit: 0 },
+    { account: "Accounts Payable", debit: 0, credit: 183400 },
+    { account: "Bank Account", debit: 1284350, credit: 0 },
+    { account: "GST Payable", debit: 0, credit: 41792 },
+    { account: "Equity", debit: 0, credit: 1156558 },
+  ];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ display: "flex", gap: 4, overflowX: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 2 }}>
+        {[["journal","Journal Entries"],["trial","Trial Balance"],["pnl","P&L"]].map(([id, label]) => (
+          <button key={id} onClick={() => setSub(id)} style={{ padding:"7px 14px", borderRadius:6, fontSize:12, fontWeight:600, cursor:"pointer", flexShrink:0, border:`1px solid ${sub===id?C.primary:C.border}`, background:sub===id?C.primaryLight:"transparent", color:sub===id?C.primary:C.muted }}>{label}</button>
+        ))}
+      </div>
+
+      {sub === "journal" && (
+        <div style={{ ...card, padding: 0, overflow: "hidden" }}>
+          <div style={{ padding:"12px 16px", borderBottom:`1px solid ${C.border}`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+            <div style={{ fontWeight:700, fontSize:13, color:C.text }}>Journal Entries</div>
+            <button style={btn("primary",true)}>+ New Entry</button>
+          </div>
+          {bp.isMobile ? (
+            journals.map((j, i) => (
+              <div key={i} style={{ padding:"13px 16px", borderBottom:i<journals.length-1?`1px solid ${C.borderLight}`:"none" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                  <span style={{ fontSize:12, fontFamily:"monospace", color:C.primary, fontWeight:600 }}>{j.ref}</span>
+                  <span style={{ fontSize:13, fontWeight:800, color:C.text }}>{fmt(j.amount)}</span>
+                </div>
+                <div style={{ fontSize:13, color:C.text, marginBottom:4 }}>{j.narration}</div>
+                <div style={{ fontSize:11, color:C.muted }}>Dr: {j.debit} · Cr: {j.credit}</div>
+              </div>
+            ))
+          ) : (
+            <ScrollTable>
+              <thead><tr style={{ background:"#fafbfc", borderBottom:`1px solid ${C.border}` }}><TH>Date</TH><TH>Ref</TH><TH>Narration</TH><TH>Debit</TH><TH>Credit</TH><TH right>Amount</TH></tr></thead>
+              <tbody>
+                {journals.map((j,i) => (
+                  <tr key={i} style={{ borderBottom:`1px solid ${C.borderLight}` }}>
+                    <td style={{ padding:"11px 14px", fontSize:12, color:C.muted }}>{j.date}</td>
+                    <td style={{ padding:"11px 14px", fontSize:12, fontFamily:"monospace", color:C.primary, fontWeight:600 }}>{j.ref}</td>
+                    <td style={{ padding:"11px 14px", fontSize:12, color:C.text }}>{j.narration}</td>
+                    <td style={{ padding:"11px 14px", fontSize:12, color:C.red, fontWeight:600 }}>Dr: {j.debit}</td>
+                    <td style={{ padding:"11px 14px", fontSize:12, color:C.green, fontWeight:600 }}>Cr: {j.credit}</td>
+                    <td style={{ padding:"11px 14px", textAlign:"right", fontSize:13, fontWeight:700, color:C.text }}>{fmt(j.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </ScrollTable>
+          )}
+        </div>
+      )}
+
+      {sub === "trial" && (
+        <div style={{ ...card, padding: 0, overflow: "hidden" }}>
+          <div style={{ padding:"12px 16px", borderBottom:`1px solid ${C.border}`, fontWeight:700, fontSize:13, color:C.text }}>Trial Balance — Mar 31, 2024</div>
+          {trial.map((row, i) => (
+            <div key={i} style={{ display:"flex", padding:"11px 16px", borderBottom:`1px solid ${C.borderLight}` }}>
+              <div style={{ flex:1, fontSize:13, fontWeight:600, color:C.text }}>{row.account}</div>
+              <div style={{ width:bp.isMobile?88:130, textAlign:"right", fontSize:13, fontWeight:row.debit?700:400, color:row.debit?C.red:C.faint }}>{row.debit?fmt(row.debit):"—"}</div>
+              <div style={{ width:bp.isMobile?88:130, textAlign:"right", fontSize:13, fontWeight:row.credit?700:400, color:row.credit?C.green:C.faint }}>{row.credit?fmt(row.credit):"—"}</div>
+            </div>
+          ))}
+          <div style={{ display:"flex", padding:"12px 16px", background:"#f0f4ff", borderTop:`2px solid ${C.border}` }}>
+            <div style={{ flex:1, fontWeight:800, fontSize:13, color:C.text }}>Total</div>
+            <div style={{ width:bp.isMobile?88:130, textAlign:"right", fontWeight:800, color:C.red }}>{fmt(trial.reduce((s,r)=>s+r.debit,0))}</div>
+            <div style={{ width:bp.isMobile?88:130, textAlign:"right", fontWeight:800, color:C.green }}>{fmt(trial.reduce((s,r)=>s+r.credit,0))}</div>
+          </div>
+        </div>
+      )}
+
+      {sub === "pnl" && (
+        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+          {[
+            { title:"Income", items:[["Revenue from Services",1280000],["Other Income",42000]], color:C.green, total:1322000 },
+            { title:"Expenses", items:[["Cloud Expenses",190400],["Salary",720000],["Rent",135000],["SaaS & Tools",62400],["Depreciation",25500]], color:C.red, total:1133300 },
+          ].map((section, si) => (
+            <div key={si} style={{ ...card, padding:0, overflow:"hidden" }}>
+              <div style={{ padding:"12px 16px", borderBottom:`1px solid ${C.border}`, fontWeight:700, fontSize:13, color:C.text }}>{section.title}</div>
+              {section.items.map(([label,val],i) => (
+                <div key={i} style={{ display:"flex", justifyContent:"space-between", padding:"11px 16px", borderBottom:`1px solid ${C.borderLight}` }}>
+                  <span style={{ fontSize:13, color:C.text }}>{label}</span>
+                  <span style={{ fontSize:13, fontWeight:700, color:C.text }}>{fmt(val)}</span>
+                </div>
+              ))}
+              <div style={{ display:"flex", justifyContent:"space-between", padding:"12px 16px", background:"#fafbfc" }}>
+                <span style={{ fontWeight:700, fontSize:13, color:C.text }}>Total {section.title}</span>
+                <span style={{ fontWeight:800, fontSize:15, color:section.color }}>{fmt(section.total)}</span>
+              </div>
+            </div>
+          ))}
+          <div style={{ ...card, display:"flex", justifyContent:"space-between", alignItems:"center", background:C.primaryLight, border:`1px solid ${C.primaryBorder}` }}>
+            <div style={{ fontWeight:700, fontSize:15, color:C.text }}>Net Profit</div>
+            <div style={{ fontWeight:900, fontSize:bp.isMobile?20:24, color:C.green }}>₹1,88,700</div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SettingsPage({ bp }) {
+  const [tab, setTab] = useState("company");
+  const [notif, setNotif] = useState({ gstDue: true, invoice: true, bank: false });
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ display:"flex", gap:4, overflowX:"auto", WebkitOverflowScrolling:"touch", paddingBottom:2 }}>
+        {["company","tax","fiscal","notifications","integrations"].map(t => (
+          <button key={t} onClick={() => setTab(t)} style={{ padding:"7px 14px", borderRadius:6, fontSize:12, fontWeight:600, cursor:"pointer", flexShrink:0, border:`1px solid ${tab===t?C.primary:C.border}`, background:tab===t?C.primaryLight:"transparent", color:tab===t?C.primary:C.muted, textTransform:"capitalize" }}>{t}</button>
+        ))}
+      </div>
+
+      {tab === "company" && (
+        <div style={card}>
+          <div style={{ fontWeight:700, fontSize:13, color:C.text, marginBottom:14 }}>Company Information</div>
+          <div style={{ display:"grid", gridTemplateColumns:bp.isMobile?"1fr":"1fr 1fr", gap:12 }}>
+            {[["Company Name","Nexus Technologies Pvt Ltd"],["GSTIN","29AABCN1234A1Z5"],["PAN","AABCN1234A"],["TAN","BLRN01234A"],["Address","123 Koramangala, Bangalore - 560034"],["Industry","Technology / SaaS"],["Fiscal Year","April 1"],["Currency","INR (₹)"]].map(([l,v]) => (
+              <div key={l}>
+                <div style={{ fontSize:10, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:5 }}>{l}</div>
+                <input defaultValue={v} style={{ width:"100%", boxSizing:"border-box", padding:"9px 12px", borderRadius:7, fontSize:13, background:C.bg, border:`1px solid ${C.border}`, color:C.text, outline:"none" }} />
+              </div>
+            ))}
+          </div>
+          <button style={{ ...btn("primary"), marginTop:16, width:bp.isMobile?"100%":"auto", justifyContent:"center" }}>Save Changes</button>
+        </div>
+      )}
+
+      {tab === "tax" && (
+        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+          {[
+            { title:"GST Configuration", fields:[["GST Type","Regular Taxpayer"],["GSTIN","29AABCN1234A1Z5"],["HSN Code","998314"],["SAC Code","998314"]] },
+            { title:"TDS Configuration", fields:[["TAN Number","BLRN01234A"],["Sections","194J, 194C"],["Deductor Type","Company"],["Filing","Quarterly"]] },
+          ].map((section, si) => (
+            <div key={si} style={card}>
+              <div style={{ fontWeight:700, fontSize:13, color:C.text, marginBottom:14 }}>{section.title}</div>
+              <div style={{ display:"grid", gridTemplateColumns:bp.isMobile?"1fr":"1fr 1fr", gap:12 }}>
+                {section.fields.map(([l,v]) => (
+                  <div key={l}>
+                    <div style={{ fontSize:10, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:5 }}>{l}</div>
+                    <input defaultValue={v} style={{ width:"100%", boxSizing:"border-box", padding:"9px 12px", borderRadius:7, fontSize:13, background:C.bg, border:`1px solid ${C.border}`, color:C.text, outline:"none" }} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === "notifications" && (
+        <div style={card}>
+          <div style={{ fontWeight:700, fontSize:13, color:C.text, marginBottom:14 }}>Notification Preferences</div>
+          {[
+            { key:"gstDue", label:"GST Return Due Reminders", desc:"7 days before GSTR-3B due date" },
+            { key:"invoice", label:"Invoice Overdue Alerts", desc:"Daily alerts for overdue payments" },
+            { key:"bank", label:"Bank Reconciliation Summary", desc:"Weekly unmatched transaction digest" },
+          ].map((n,i) => (
+            <div key={i} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 0", borderBottom:i<2?`1px solid ${C.borderLight}`:"none", gap:12 }}>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:13, fontWeight:600, color:C.text }}>{n.label}</div>
+                <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>{n.desc}</div>
+              </div>
+              <Toggle value={notif[n.key]} onChange={v => setNotif(p => ({ ...p, [n.key]: v }))} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === "integrations" && (
+        <div style={{ display:"grid", gridTemplateColumns:bp.isMobile?"1fr":bp.isTablet?"1fr 1fr":"repeat(3,1fr)", gap:12 }}>
+          {[
+            { name:"Razorpay", desc:"Auto-match payment settlements", status:"Connected", icon:"💳" },
+            { name:"HDFC NetBanking", desc:"Bank statement import", status:"Connected", icon:"🏦" },
+            { name:"GST Portal", desc:"Auto-file GSTR returns", status:"Pending", icon:"🏛️" },
+            { name:"Tally ERP", desc:"Two-way sync with Tally", status:"Not Connected", icon:"📊" },
+            { name:"Slack", desc:"Finance alerts to Slack", status:"Connected", icon:"💬" },
+            { name:"Quickbooks", desc:"Migrate from QB", status:"Not Connected", icon:"📒" },
+          ].map((int, i) => (
+            <div key={i} style={{ ...card, display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                <div style={{ fontSize:22 }}>{int.icon}</div>
+                <div>
+                  <div style={{ fontWeight:700, fontSize:13, color:C.text }}>{int.name}</div>
+                  <div style={{ fontSize:11, color:C.muted }}>{int.desc}</div>
+                </div>
+              </div>
+              <div style={{ display:"flex", flexDirection:"column", gap:5, alignItems:"flex-end", flexShrink:0 }}>
+                <span style={badge(int.status==="Connected"?C.green:int.status==="Pending"?C.amber:C.muted, int.status==="Connected"?C.greenBg:int.status==="Pending"?C.amberBg:"#f3f4f6", int.status==="Connected"?C.greenBorder:int.status==="Pending"?C.amberBorder:"#d1d5db")}>{int.status}</span>
+                <button style={{ padding:"4px 10px", fontSize:11, fontWeight:600, borderRadius:5, cursor:"pointer", border:`1px solid ${C.border}`, background:"white", color:C.text }}>{int.status==="Connected"?"Manage":"Connect"}</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === "fiscal" && (
+        <div style={card}>
+          <div style={{ fontWeight:700, fontSize:13, color:C.text, marginBottom:14 }}>Fiscal Year Settings</div>
+          <div style={{ display:"grid", gridTemplateColumns:bp.isMobile?"1fr":"1fr 1fr", gap:12 }}>
+            {[["Fiscal Year","April 2023 – March 2024"],["Current Period","March 2024"],["Books Lock Date","Not Set"],["Accounting Method","Accrual"],["Depreciation Method","SLM (Straight Line)"],["Threshold","₹5,000"]].map(([l,v]) => (
+              <div key={l}>
+                <div style={{ fontSize:10, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:5 }}>{l}</div>
+                <input defaultValue={v} style={{ width:"100%", boxSizing:"border-box", padding:"9px 12px", borderRadius:7, fontSize:13, background:C.bg, border:`1px solid ${C.border}`, color:C.text, outline:"none" }} />
+              </div>
+            ))}
+          </div>
+          <button style={{ ...btn("primary"), marginTop:16 }}>Save Settings</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══ ROOT ════════════════════════════════════════════════════════════════════
+export default function AccountingApp() {
+  const bp = useBreakpoint();
+  const [page, setPage] = useState("overview");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // ── Logout confirmation state ──────────────────────────────────
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  const handleLogout = () => {
+    // உங்கள் logout logic இங்கே — e.g. localStorage clear, redirect
+    alert("You have been logged out successfully!");
+    setShowLogoutConfirm(false);
+  };
+
+  const nav = [
+    { id:"overview", label:"Overview", short:"Home" },
+    { id:"invoices", label:"Purchase Invoices", short:"Invoices" },
+    { id:"tax", label:"GST & Tax", short:"GST" },
+    { id:"vendors", label:"Vendors", short:"Vendors" },
+    { id:"bank", label:"Bank Reconciliation", short:"Bank" },
+    { id:"accounting", label:"Center Accounting", short:"Books" },
+    { id:"settings", label:"System Settings", short:"Settings" },
+  ];
+
+  const bottomItems = [nav[0], nav[1], nav[2], nav[4], nav[6]];
+
+  const navigate = (id) => { setPage(id); setDrawerOpen(false); };
+  const currentLabel = nav.find(n => n.id === page)?.label || "";
+
+  const pages = {
+    overview: <OverviewPage bp={bp} />,
+    invoices: <InvoicesPage bp={bp} />,
+    tax: <TaxPage bp={bp} />,
+    vendors: <VendorsPage bp={bp} />,
+    bank: <BankPage bp={bp} />,
+    accounting: <AccountingPage bp={bp} />,
+    settings: <SettingsPage bp={bp} />,
+  };
+
+  // ── Sidebar content (shared) ───────────────────────────────────
+  const SidebarContent = () => (
+    <>
+      <div style={{ padding:"16px 14px", borderBottom:`1px solid ${C.border}`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:9 }}>
+          <div style={{ width:30, height:30, borderRadius:8, background:C.primary, display:"flex", alignItems:"center", justifyContent:"center", color:"white", fontWeight:900, fontSize:15 }}>N</div>
+          <div>
+            <div style={{ fontWeight:800, fontSize:13, color:C.text }}>Nexus Books</div>
+            <div style={{ fontSize:10, color:C.faint }}>FY 2023–24</div>
+          </div>
+        </div>
+        {!bp.isDesktop && (
+          <button onClick={() => setDrawerOpen(false)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:4 }}><NavIcon id="close" size={18} /></button>
+        )}
+      </div>
+
+      <nav style={{ flex:1, padding:"10px 8px", overflowY:"auto" }}>
+        {nav.map(item => {
+          const active = page === item.id;
+          return (
+            <button key={item.id} onClick={() => navigate(item.id)} style={{ width:"100%", display:"flex", alignItems:"center", gap:9, padding:"10px 11px", borderRadius:7, marginBottom:2, border:"none", background:active?C.primaryLight:"transparent", color:active?C.primary:C.muted, cursor:"pointer", fontSize:13, fontWeight:active?700:500, textAlign:"left", borderLeft:active?`3px solid ${C.primary}`:"3px solid transparent" }}>
+              <span style={{ color:active?C.primary:C.faint }}><NavIcon id={item.id} /></span>
+              {item.label}
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* ── User profile + Logout ── */}
+      <div style={{ padding:"10px", borderTop:`1px solid ${C.border}` }}>
+        <div style={{ padding:"9px 11px", borderRadius:8, background:C.bg, display:"flex", alignItems:"center", gap:8 }}>
+          <div style={{ width:28, height:28, borderRadius:6, background:C.primary, display:"flex", alignItems:"center", justifyContent:"center", color:"white", fontSize:10, fontWeight:800, flexShrink:0 }}>RS</div>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontSize:12, fontWeight:700, color:C.text }}>Ravi Shankar</div>
+            <div style={{ fontSize:10, color:C.faint }}>Founder · Admin</div>
+          </div>
+          {/* Logout button */}
+          <button
+            onClick={() => setShowLogoutConfirm(true)}
+            title="Logout"
+            style={{ background:"none", border:"none", cursor:"pointer", color:C.muted, padding:4, display:"flex", alignItems:"center", borderRadius:6, flexShrink:0 }}
+            onMouseEnter={e => { e.currentTarget.style.background = C.redBg; e.currentTarget.style.color = C.red; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = C.muted; }}
+          >
+            <NavIcon id="logout" size={16} />
+          </button>
+        </div>
+      </div>
+    </>
+  );
+
+  return (
+    <div style={{ display:"flex", minHeight:"100vh", background:C.bg, fontFamily:"'Segoe UI', system-ui, sans-serif", color:C.text }}>
+
+      {/* ── Logout Confirmation Modal ── */}
+      {showLogoutConfirm && (
+        <>
+          <div
+            onClick={() => setShowLogoutConfirm(false)}
+            style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.4)", zIndex:100 }}
+          />
+          <div style={{
+            position:"fixed", top:"50%", left:"50%", transform:"translate(-50%,-50%)",
+            background:"white", borderRadius:14, padding:"28px 28px 22px", zIndex:101,
+            width: bp.isMobile ? "calc(100vw - 48px)" : 340,
+            boxShadow:"0 8px 40px rgba(0,0,0,0.18)", textAlign:"center"
+          }}>
+            <div style={{ fontSize:36, marginBottom:12 }}>👋</div>
+            <div style={{ fontWeight:800, fontSize:16, color:C.text, marginBottom:6 }}>Logout?</div>
+            <div style={{ fontSize:13, color:C.muted, marginBottom:22 }}>Are you sure you want to logout from Nexus Books?</div>
+            <div style={{ display:"flex", gap:10 }}>
+              <button
+                onClick={() => setShowLogoutConfirm(false)}
+                style={{ flex:1, padding:"10px", borderRadius:8, border:`1px solid ${C.border}`, background:"white", color:C.text, fontSize:13, fontWeight:600, cursor:"pointer" }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleLogout}
+                style={{ flex:1, padding:"10px", borderRadius:8, border:"none", background:C.red, color:"white", fontSize:13, fontWeight:700, cursor:"pointer" }}
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Desktop sidebar */}
+      {bp.isDesktop && (
+        <aside style={{ width:220, minHeight:"100vh", background:C.sidebar, borderRight:`1px solid ${C.border}`, display:"flex", flexDirection:"column", position:"sticky", top:0, flexShrink:0 }}>
+          <SidebarContent />
+        </aside>
+      )}
+
+      {/* Tablet/mobile overlay drawer */}
+      {!bp.isDesktop && drawerOpen && (
+        <>
+          <div onClick={() => setDrawerOpen(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.35)", zIndex:40 }} />
+          {bp.isTablet ? (
+            <aside style={{ position:"fixed", left:0, top:0, bottom:0, width:240, background:C.sidebar, borderRight:`1px solid ${C.border}`, display:"flex", flexDirection:"column", zIndex:50, boxShadow:"4px 0 20px rgba(0,0,0,0.1)" }}>
+              <SidebarContent />
+            </aside>
+          ) : (
+            <div style={{ position:"fixed", bottom:0, left:0, right:0, background:"white", borderRadius:"16px 16px 0 0", zIndex:50, maxHeight:"80vh", overflowY:"auto", boxShadow:"0 -4px 30px rgba(0,0,0,0.12)" }}>
+              <div style={{ padding:"14px 18px", borderBottom:`1px solid ${C.border}`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <div style={{ fontWeight:700, fontSize:14, color:C.text }}>All Modules</div>
+                <button onClick={() => setDrawerOpen(false)} style={{ background:"none", border:"none", cursor:"pointer", color:C.muted }}><NavIcon id="close" size={18} /></button>
+              </div>
+              {nav.map(item => {
+                const active = page === item.id;
+                return (
+                  <button key={item.id} onClick={() => navigate(item.id)} style={{ width:"100%", display:"flex", alignItems:"center", gap:12, padding:"15px 20px", border:"none", borderBottom:`1px solid ${C.borderLight}`, background:active?C.primaryLight:"transparent", color:active?C.primary:C.text, cursor:"pointer", fontSize:15, fontWeight:active?700:500, textAlign:"left" }}>
+                    <span style={{ color:active?C.primary:C.muted }}><NavIcon id={item.id} size={18} /></span>
+                    {item.label}
+                  </button>
+                );
+              })}
+              {/* Mobile drawer logout */}
+              <button
+                onClick={() => { setDrawerOpen(false); setShowLogoutConfirm(true); }}
+                style={{ width:"100%", display:"flex", alignItems:"center", gap:12, padding:"15px 20px", border:"none", borderBottom:`1px solid ${C.borderLight}`, background:"transparent", color:C.red, cursor:"pointer", fontSize:15, fontWeight:600, textAlign:"left" }}
+              >
+                <NavIcon id="logout" size={18} />
+                Logout
+              </button>
+              <div style={{ height:20 }} />
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Main */}
+      <main style={{ flex:1, minWidth:0, overflowY:"auto", paddingBottom: bp.isMobile ? 68 : 0 }}>
+        {/* Topbar */}
+        <div style={{ position:"sticky", top:0, zIndex:20, padding: bp.isMobile ? "11px 14px" : "11px 22px", background:"rgba(245,247,250,0.96)", backdropFilter:"blur(10px)", borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"space-between", gap:10 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:9 }}>
+            {!bp.isDesktop && (
+              <button onClick={() => setDrawerOpen(true)} style={{ background:"none", border:"none", cursor:"pointer", color:C.text, padding:4, display:"flex" }}>
+                <NavIcon id="menu" size={20} />
+              </button>
+            )}
+            <div>
+              <div style={{ fontWeight:800, fontSize:bp.isMobile?14:15, color:C.text }}>{currentLabel}</div>
+              {!bp.isMobile && <div style={{ fontSize:10, color:C.faint, marginTop:1 }}>Nexus Technologies · March 2024</div>}
+            </div>
+          </div>
+          <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+            {!bp.isMobile && (
+              <>
+                <button style={{ ...btn("outline",true) }}>📥 Import</button>
+                <button style={{ ...btn("outline",true) }}>📤 Export</button>
+              </>
+            )}
+            <span style={{ fontSize:11, padding:"4px 8px", borderRadius:6, background:C.greenBg, border:`1px solid ${C.greenBorder}`, color:C.green, fontWeight:600, whiteSpace:"nowrap" }}>
+              {bp.isMobile ? "● Open" : "● Books Open"}
+            </span>
           </div>
         </div>
 
-        {/* Nav */}
-        <nav style={{ flex: 1, padding: "12px 8px" }}>
-          {navItems.map(item => {
-            const active = activePage === item.id;
+        {/* Page content */}
+        <div style={{ padding: bp.isMobile ? "14px 14px" : bp.isTablet ? "18px 20px" : "22px 26px" }}>
+          {pages[page]}
+        </div>
+      </main>
+
+      {/* Mobile bottom navigation */}
+      {bp.isMobile && (
+        <nav style={{ position:"fixed", bottom:0, left:0, right:0, zIndex:30, background:"white", borderTop:`1px solid ${C.border}`, display:"flex", paddingBottom:"env(safe-area-inset-bottom, 0px)", boxShadow:"0 -2px 12px rgba(0,0,0,0.06)" }}>
+          {bottomItems.map(item => {
+            const active = page === item.id;
             return (
-              <button key={item.id} onClick={() => setActivePage(item.id as any)}
-                style={{
-                  width: "100%", display: "flex", alignItems: "center", gap: 10,
-                  padding: "10px 12px", borderRadius: 10, marginBottom: 2,
-                  border: active ? "1px solid rgba(99,102,241,0.35)" : "1px solid transparent",
-                  background: active ? "linear-gradient(135deg,rgba(99,102,241,0.22),rgba(14,165,233,0.12))" : "transparent",
-                  color: active ? "white" : "rgba(255,255,255,0.38)",
-                  cursor: "pointer", fontSize: 13, fontWeight: active ? 600 : 400,
-                  transition: "all 0.15s",
-                }}>
-                <item.icon size={16} color={active ? "#a5b4fc" : "rgba(255,255,255,0.3)"} />
-                <span style={{ flex: 1, textAlign: "left" }}>{item.label}</span>
-                {item.badge && (
-                  <span style={{ fontSize: 9, fontWeight: 800, padding: "2px 6px", borderRadius: 20, background: "linear-gradient(135deg,#6366f1,#0ea5e9)", color: "white" }}>
-                    {item.badge}
-                  </span>
-                )}
+              <button key={item.id} onClick={() => navigate(item.id)} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"9px 4px 7px", border:"none", background:"transparent", cursor:"pointer", color:active?C.primary:C.faint, gap:3, minWidth:0 }}>
+                <NavIcon id={item.id} size={20} />
+                <span style={{ fontSize:9, fontWeight:active?700:500, letterSpacing:"0.02em" }}>{item.short}</span>
+                {active && <div style={{ width:4, height:4, borderRadius:"50%", background:C.primary }} />}
               </button>
             );
           })}
+          <button onClick={() => setDrawerOpen(true)} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"9px 4px 7px", border:"none", background:"transparent", cursor:"pointer", color:C.faint, gap:3 }}>
+            <NavIcon id="menu" size={20} />
+            <span style={{ fontSize:9, fontWeight:500, letterSpacing:"0.02em" }}>More</span>
+          </button>
         </nav>
-
-        {/* User footer */}
-        <div style={{ padding: "12px 8px", borderTop: "1px solid rgba(255,255,255,0.07)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, background: "rgba(255,255,255,0.04)" }}>
-            <div style={{ width: 32, height: 32, borderRadius: 8, background: "linear-gradient(135deg,#6366f1,#0ea5e9)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, flexShrink: 0 }}>
-              {user.name.split(" ").map(n => n[0]).join("")}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{user.name}</div>
-              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", textTransform: "capitalize" }}>{user.role}</div>
-            </div>
-            <button onClick={onLogout} title="Logout"
-              style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.25)", padding: 4, display: "flex" }}>
-              <LogoutIcon size={14} />
-            </button>
-          </div>
-        </div>
-      </aside>
-
-      {/* ── MAIN ───────────────────────────────────────────────────────── */}
-      <main style={S.main}>
-
-        {/* Topbar */}
-        <div style={{ position: "sticky", top: 0, zIndex: 10, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 28px", background: "rgba(13,17,23,0.92)", backdropFilter: "blur(20px)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-          <div>
-            <div style={{ fontWeight: 800, fontSize: 18, letterSpacing: "-0.4px" }}>
-              {activePage.charAt(0).toUpperCase() + activePage.slice(1)}
-            </div>
-            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", marginTop: 1 }}>{new Date().toDateString()}</div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.3)", color: "#a5b4fc" }}>
-              🛡️ Admin
-            </span>
-            <button onClick={onLogout} style={{ padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.4)" }}>
-              Logout
-            </button>
-          </div>
-        </div>
-
-        <div style={{ padding: 28 }}>
-
-          {/* ══════════════ DASHBOARD PAGE ══════════════ */}
-          {activePage === "dashboard" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-
-              {/* Welcome */}
-              <div style={{ borderRadius: 16, padding: "20px 24px", background: "linear-gradient(135deg,rgba(99,102,241,0.2),rgba(14,165,233,0.1))", border: "1px solid rgba(99,102,241,0.2)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <div>
-                  <div style={{ fontSize: 20, fontWeight: 800 }}>Welcome back, {user.name.split(" ")[0]}! 👋</div>
-                  <div style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>Here's what's happening with your platform today.</div>
-                </div>
-                <div style={{ fontSize: 40 }}>📊</div>
-              </div>
-
-              {/* Stat cards with sparklines */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16 }}>
-                {STATS.map((s, i) => (
-                  <div key={i} style={{ borderRadius: 14, padding: "18px 18px 12px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 8 }}>{s.label}</div>
-                    <div style={{ fontSize: 24, fontWeight: 800, marginBottom: 4 }}>{s.value}</div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: s.up ? "#34d399" : "#f87171", marginBottom: 10 }}>
-                      {s.up ? "▲" : "▼"} {s.change} vs last month
-                    </div>
-                    <Sparkline data={s.data} color={s.accent} />
-                  </div>
-                ))}
-              </div>
-
-              {/* Charts row */}
-              <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 }}>
-
-                {/* Bar chart – monthly revenue */}
-                <div style={{ borderRadius: 14, padding: 20, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                    <div style={{ fontWeight: 700, fontSize: 14 }}>Monthly Revenue</div>
-                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)" }}>2024</div>
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(12,1fr)", gap: 4 }}>
-                    {REVENUE_DATA.map((v, i) => {
-                      const max = Math.max(...REVENUE_DATA);
-                      const h = Math.max(8, (v / max) * 100);
-                      return (
-                        <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                          <div style={{ width: "100%", height: 100, display: "flex", alignItems: "flex-end" }}>
-                            <div style={{ width: "100%", height: `${h}%`, borderRadius: "4px 4px 0 0", background: i === 11 ? "linear-gradient(180deg,#6366f1,#0ea5e9)" : "rgba(99,102,241,0.28)", transition: "height 0.3s" }} />
-                          </div>
-                          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.25)" }}>{MONTHS[i]}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Donut – traffic source */}
-                <div style={{ borderRadius: 14, padding: 20, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-                  <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 16 }}>Traffic Sources</div>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
-                    <DonutChart segments={DONUT_SEGMENTS} />
-                    <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 6 }}>
-                      {DONUT_SEGMENTS.map((seg, i) => (
-                        <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <div style={{ width: 8, height: 8, borderRadius: "50%", background: seg.color }} />
-                            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.55)" }}>{seg.label}</span>
-                          </div>
-                          <span style={{ fontSize: 12, fontWeight: 700 }}>{seg.value}%</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Recent users mini table */}
-              <div style={{ borderRadius: 14, overflow: "hidden", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 20px", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                  <div style={{ fontWeight: 700, fontSize: 14 }}>Recent Users</div>
-                  <button onClick={() => setActivePage("users")} style={{ background: "none", border: "none", cursor: "pointer", color: "#818cf8", fontSize: 12, fontWeight: 600 }}>View all →</button>
-                </div>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                      {["User", "Role", "Status", "Joined"].map(h => (
-                        <th key={h} style={{ padding: "10px 20px", textAlign: "left", fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.25)", textTransform: "uppercase", letterSpacing: "0.08em" }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ALL_USERS.slice(0, 5).map((u, i) => (
-                      <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
-                        <td style={{ padding: "12px 20px" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                            <div style={{ width: 30, height: 30, borderRadius: 8, background: `linear-gradient(135deg,${u.color},${u.color}88)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800 }}>{u.av}</div>
-                            <div>
-                              <div style={{ fontSize: 13, fontWeight: 600 }}>{u.name}</div>
-                              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)" }}>{u.email}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td style={{ padding: "12px 20px" }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.25)", color: "#a5b4fc" }}>{u.role}</span>
-                        </td>
-                        <td style={{ padding: "12px 20px" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <div style={{ width: 6, height: 6, borderRadius: "50%", background: u.status === "Active" ? "#34d399" : "rgba(255,255,255,0.2)" }} />
-                            <span style={{ fontSize: 12, color: u.status === "Active" ? "#34d399" : "rgba(255,255,255,0.3)" }}>{u.status}</span>
-                          </div>
-                        </td>
-                        <td style={{ padding: "12px 20px", fontSize: 12, color: "rgba(255,255,255,0.35)" }}>{u.joined}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* ══════════════ USERS PAGE ══════════════ */}
-          {activePage === "users" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-
-              {/* Stats row */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }}>
-                {[
-                  { label: "Total Users",    value: ALL_USERS.length,                              color: "#6366f1" },
-                  { label: "Active",         value: ALL_USERS.filter(u => u.status==="Active").length,   color: "#10b981" },
-                  { label: "Inactive",       value: ALL_USERS.filter(u => u.status==="Inactive").length, color: "#f59e0b" },
-                  { label: "Admins",         value: ALL_USERS.filter(u => u.role==="Admin").length,      color: "#ec4899" },
-                ].map((s, i) => (
-                  <div key={i} style={{ borderRadius: 12, padding: "16px 18px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-                    <div style={{ fontSize: 28, fontWeight: 800, color: s.color }}>{s.value}</div>
-                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", marginTop: 4, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>{s.label}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Toolbar */}
-              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                <div style={{ position: "relative", flex: 1 }}>
-                  <input
-                    value={searchUsers}
-                    onChange={e => setSearchUsers(e.target.value)}
-                    placeholder="Search users by name or email..."
-                    style={{ width: "100%", boxSizing: "border-box", padding: "10px 14px 10px 36px", borderRadius: 10, fontSize: 13, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "white", outline: "none" }}
-                  />
-                  <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 14, opacity: 0.4 }}>🔍</span>
-                </div>
-                {["All","Admin","Editor","Viewer"].map(r => (
-                  <button key={r} onClick={() => setFilterRole(r)}
-                    style={{ padding: "9px 16px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", border: filterRole === r ? "1px solid rgba(99,102,241,0.5)" : "1px solid rgba(255,255,255,0.08)", background: filterRole === r ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.03)", color: filterRole === r ? "#a5b4fc" : "rgba(255,255,255,0.4)" }}>
-                    {r}
-                  </button>
-                ))}
-              </div>
-
-              {/* Full users table */}
-              <div style={{ borderRadius: 14, overflow: "hidden", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                      {["User", "Email", "Role", "Status", "Joined", "Actions"].map(h => (
-                        <th key={h} style={{ padding: "12px 20px", textAlign: "left", fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.25)", textTransform: "uppercase", letterSpacing: "0.08em" }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredUsers.map((u, i) => (
-                      <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
-                        <td style={{ padding: "14px 20px" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                            <div style={{ width: 34, height: 34, borderRadius: 9, background: `linear-gradient(135deg,${u.color},${u.color}66)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, flexShrink: 0 }}>{u.av}</div>
-                            <span style={{ fontSize: 13, fontWeight: 600 }}>{u.name}</span>
-                          </div>
-                        </td>
-                        <td style={{ padding: "14px 20px", fontSize: 12, color: "rgba(255,255,255,0.4)" }}>{u.email}</td>
-                        <td style={{ padding: "14px 20px" }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.25)", color: "#a5b4fc" }}>{u.role}</span>
-                        </td>
-                        <td style={{ padding: "14px 20px" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <div style={{ width: 6, height: 6, borderRadius: "50%", background: u.status === "Active" ? "#34d399" : "rgba(255,255,255,0.2)" }} />
-                            <span style={{ fontSize: 12, color: u.status === "Active" ? "#34d399" : "rgba(255,255,255,0.3)" }}>{u.status}</span>
-                          </div>
-                        </td>
-                        <td style={{ padding: "14px 20px", fontSize: 12, color: "rgba(255,255,255,0.35)" }}>{u.joined}</td>
-                        <td style={{ padding: "14px 20px" }}>
-                          <div style={{ display: "flex", gap: 6 }}>
-                            <button style={{ padding: "5px 12px", borderRadius: 7, fontSize: 11, fontWeight: 600, cursor: "pointer", background: "rgba(14,165,233,0.12)", border: "1px solid rgba(14,165,233,0.25)", color: "#38bdf8" }}>Edit</button>
-                            <button style={{ padding: "5px 12px", borderRadius: 7, fontSize: 11, fontWeight: 600, cursor: "pointer", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", color: "#f87171" }}>Remove</button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                    {filteredUsers.length === 0 && (
-                      <tr><td colSpan={6} style={{ padding: 40, textAlign: "center", color: "rgba(255,255,255,0.25)", fontSize: 13 }}>No users match your search.</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* ══════════════ REPORTS PAGE ══════════════ */}
-          {activePage === "reports" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-
-              {/* Summary cards */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16 }}>
-                {[
-                  { label: "Total Reports", value: REPORTS.length,                                  icon: "📄", color: "#6366f1" },
-                  { label: "Ready",         value: REPORTS.filter(r=>r.status==="Ready").length,    icon: "✅", color: "#10b981" },
-                  { label: "Processing",    value: REPORTS.filter(r=>r.status==="Processing").length,icon: "⏳", color: "#f59e0b" },
-                ].map((s, i) => (
-                  <div key={i} style={{ borderRadius: 12, padding: "18px 20px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", display: "flex", alignItems: "center", gap: 14 }}>
-                    <div style={{ fontSize: 28 }}>{s.icon}</div>
-                    <div>
-                      <div style={{ fontSize: 26, fontWeight: 800, color: s.color }}>{s.value}</div>
-                      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>{s.label}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Reports list */}
-              <div style={{ borderRadius: 14, overflow: "hidden", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-                <div style={{ padding: "14px 20px", borderBottom: "1px solid rgba(255,255,255,0.05)", fontWeight: 700, fontSize: 14 }}>All Reports</div>
-                {REPORTS.map((r, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px 20px", borderBottom: i < REPORTS.length-1 ? "1px solid rgba(255,255,255,0.04)" : "none" }}>
-                    <div style={{ width: 40, height: 40, borderRadius: 10, background: `${r.color}20`, border: `1px solid ${r.color}40`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: r.color, flexShrink: 0 }}>
-                      {r.type}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600 }}>{r.title}</div>
-                      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginTop: 2 }}>{r.date} · {r.size}</div>
-                    </div>
-                    <span style={{
-                      fontSize: 11, fontWeight: 700, padding: "4px 12px", borderRadius: 20,
-                      background: r.status === "Ready" ? "rgba(16,185,129,0.15)" : r.status === "Processing" ? "rgba(245,158,11,0.15)" : "rgba(107,114,128,0.2)",
-                      border: `1px solid ${r.status === "Ready" ? "rgba(16,185,129,0.3)" : r.status === "Processing" ? "rgba(245,158,11,0.3)" : "rgba(107,114,128,0.3)"}`,
-                      color: r.status === "Ready" ? "#34d399" : r.status === "Processing" ? "#fcd34d" : "#9ca3af",
-                    }}>
-                      {r.status}
-                    </span>
-                    <button style={{ padding: "7px 16px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.3)", color: "#a5b4fc" }}>
-                      Download
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* ══════════════ SETTINGS PAGE ══════════════ */}
-          {activePage === "settings" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-
-              {/* Tabs */}
-              <div style={{ display: "flex", gap: 4, padding: 4, borderRadius: 12, background: "rgba(255,255,255,0.04)", width: "fit-content" }}>
-                {(["profile","security","notifications"] as const).map(tab => (
-                  <button key={tab} onClick={() => setSettingsTab(tab)}
-                    style={{ padding: "8px 20px", borderRadius: 9, fontSize: 13, fontWeight: 600, cursor: "pointer", border: "none", background: settingsTab === tab ? "rgba(99,102,241,0.25)" : "transparent", color: settingsTab === tab ? "white" : "rgba(255,255,255,0.4)", textTransform: "capitalize" }}>
-                    {tab}
-                  </button>
-                ))}
-              </div>
-
-              {/* Profile tab */}
-              {settingsTab === "profile" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                  <div style={{ borderRadius: 14, padding: 24, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 20 }}>Profile Information</div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 24 }}>
-                      <div style={{ width: 64, height: 64, borderRadius: 16, background: "linear-gradient(135deg,#6366f1,#0ea5e9)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 800 }}>
-                        {user.name.split(" ").map(n => n[0]).join("")}
-                      </div>
-                      <div>
-                        <div style={{ fontWeight: 700, fontSize: 16 }}>{user.name}</div>
-                        <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>{user.email}</div>
-                        <div style={{ fontSize: 11, marginTop: 6, padding: "2px 10px", borderRadius: 20, background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.3)", color: "#a5b4fc", display: "inline-block", fontWeight: 700, textTransform: "capitalize" }}>{user.role}</div>
-                      </div>
-                    </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                      {[
-                        { label: "Full Name", value: user.name },
-                        { label: "Email",     value: user.email },
-                        { label: "Role",      value: user.role },
-                        { label: "Timezone",  value: "Asia/Kolkata" },
-                      ].map((f, i) => (
-                        <div key={i}>
-                          <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.35)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>{f.label}</div>
-                          <input defaultValue={f.value} style={{ width: "100%", boxSizing: "border-box", padding: "10px 14px", borderRadius: 9, fontSize: 13, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "white", outline: "none", textTransform: f.label === "Role" ? "capitalize" : "none" }} />
-                        </div>
-                      ))}
-                    </div>
-                    <button style={{ marginTop: 20, padding: "10px 24px", borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: "pointer", background: "linear-gradient(135deg,#6366f1,#0ea5e9)", border: "none", color: "white" }}>
-                      Save Changes
-                    </button>
-                  </div>
-
-                  {/* Appearance */}
-                  <div style={{ borderRadius: 14, padding: 24, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 16 }}>Appearance</div>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 600 }}>Dark Mode</div>
-                        <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginTop: 2 }}>Use dark theme across the dashboard</div>
-                      </div>
-                      <Toggle value={darkMode} onChange={setDarkMode} />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Security tab */}
-              {settingsTab === "security" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                  <div style={{ borderRadius: 14, padding: 24, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 20 }}>Change Password</div>
-                    {["Current Password","New Password","Confirm Password"].map((label, i) => (
-                      <div key={i} style={{ marginBottom: 14 }}>
-                        <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.35)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</div>
-                        <input type="password" placeholder="••••••••" style={{ width: "100%", boxSizing: "border-box", padding: "10px 14px", borderRadius: 9, fontSize: 13, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "white", outline: "none" }} />
-                      </div>
-                    ))}
-                    <button style={{ marginTop: 6, padding: "10px 24px", borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: "pointer", background: "linear-gradient(135deg,#6366f1,#0ea5e9)", border: "none", color: "white" }}>
-                      Update Password
-                    </button>
-                  </div>
-
-                  <div style={{ borderRadius: 14, padding: 24, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 16 }}>Two-Factor Authentication</div>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 600 }}>Enable 2FA</div>
-                        <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginTop: 2 }}>Add an extra layer of security to your account</div>
-                      </div>
-                      <Toggle value={twoFA} onChange={setTwoFA} />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Notifications tab */}
-              {settingsTab === "notifications" && (
-                <div style={{ borderRadius: 14, padding: 24, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-                  <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 20 }}>Notification Preferences</div>
-                  {[
-                    { label: "Email Notifications",  desc: "Receive updates via email",         value: notifEmail, set: setNotifEmail },
-                    { label: "Push Notifications",   desc: "Browser push notifications",        value: notifPush,  set: setNotifPush },
-                    { label: "SMS Notifications",    desc: "Get alerts via text message",       value: notifSMS,   set: setNotifSMS },
-                  ].map((n, i) => (
-                    <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 0", borderBottom: i < 2 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 600 }}>{n.label}</div>
-                        <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginTop: 2 }}>{n.desc}</div>
-                      </div>
-                      <Toggle value={n.value} onChange={n.set} />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-        </div>
-      </main>
+      )}
     </div>
-  );
-}
-
-// ─── Toggle switch ────────────────────────────────────────────────────────────
-function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <div onClick={() => onChange(!value)} style={{ width: 44, height: 24, borderRadius: 12, background: value ? "linear-gradient(135deg,#6366f1,#0ea5e9)" : "rgba(255,255,255,0.12)", cursor: "pointer", position: "relative", transition: "background 0.2s", flexShrink: 0 }}>
-      <div style={{ position: "absolute", top: 3, left: value ? 23 : 3, width: 18, height: 18, borderRadius: "50%", background: "white", transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.3)" }} />
-    </div>
-  );
-}
-
-// ─── Icons ────────────────────────────────────────────────────────────────────
-function DashIcon({ size, color }: { size: number; color: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
-      <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
-      <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
-    </svg>
-  );
-}
-function UsersIcon({ size, color }: { size: number; color: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
-      <circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/>
-      <path d="M16 3.13a4 4 0 010 7.75"/><path d="M21 21v-2a4 4 0 00-3-3.85"/>
-    </svg>
-  );
-}
-function ReportIcon({ size, color }: { size: number; color: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
-      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-      <polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/>
-      <line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/>
-    </svg>
-  );
-}
-function SettingsIcon({ size, color }: { size: number; color: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
-      <circle cx="12" cy="12" r="3"/>
-      <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
-    </svg>
-  );
-}
-function LogoutIcon({ size }: { size: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
-      <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-    </svg>
   );
 }
