@@ -5,7 +5,7 @@ import LoginPage from "./pages/LoginPage";
 import AdminDashboard from "./pages/AdminDashboard";
 import UserDashboard from "./pages/UserDashboard";
 
-export default function App() {
+export default function App() {                 
   const [page, setPage] = useState<Page>("login");
   const [user, setUser] = useState<AuthUser | null>(null);
 
@@ -24,3 +24,5 @@ export default function App() {
   if (page === "user"  && user)       return <UserDashboard  user={user} onLogout={handleLogout} />;
   return <LoginPage onLogin={handleLogin} />;
 }
+
+

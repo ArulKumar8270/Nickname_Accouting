@@ -5,6 +5,8 @@ export const CREDENTIALS: {
   password: string;
   user: AuthUser;
 }[] = [
+
+  
   {
     username: "admin",
     password: "admin123",
