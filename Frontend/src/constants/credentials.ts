@@ -1,10 +1,6 @@
-import type  { AuthUser } from "../types";
+import type { Credential } from "../types";
 
-export const CREDENTIALS: {
-  username: string;
-  password: string;
-  user: AuthUser;
-}[] = [
+export const CREDENTIALS: Credential[] = [
   {
     username: "admin",
     password: "admin123",
