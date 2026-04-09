@@ -8,7 +8,6 @@ import {
   HomeIcon, InvoiceIcon, DollarIcon, ShieldIcon, ActivityIcon, AlertIcon,
 } from "../components/Icons";
 
-
 interface UserDashboardProps {
   user: AuthUser;
   onLogout: () => void;
