@@ -1,0 +1,283 @@
+{
+  "invoices": [
+    {
+      "vendor": "AWS India",
+      "date": "Mar 28",
+      "amount": 50000,
+      "status": "Pending",
+      "id": "INV-001"
+    },
+    {
+      "id": "INV-002",
+      "vendor": "Razorpay",
+      "date": "Mar 25",
+      "amount": 12500,
+      "status": "Paid"
+    },
+    {
+      "id": "INV-003",
+      "vendor": "Google Workspace",
+      "date": "Mar 20",
+      "amount": 6800,
+      "status": "Paid"
+    },
+    {
+      "id": "INV-004",
+      "vendor": "Zoho Corp",
+      "date": "Mar 15",
+      "amount": 9500,
+      "status": "Overdue"
+    },
+    {
+      "id": "INV-005",
+      "vendor": "Freshworks",
+      "date": "Mar 10",
+      "amount": 15000,
+      "status": "Pending"
+    },
+    {
+      "vendor": "Amazon",
+      "date": "12 May",
+      "amount": 450000,
+      "status": "Pending",
+      "id": "XJPePL3"
+    },
+    {
+      "vendor": "Razorpay",
+      "date": "12 May",
+      "amount": 200000,
+      "status": "Pending",
+      "id": "fqeTPX-"
+    },
+    {
+      "vendor": "Zoho Corp",
+      "date": "12 May",
+      "amount": 540000,
+      "status": "Pending",
+      "id": "pflmOPf"
+    },
+    {
+      "vendor": "Amazon",
+      "date": "13 May",
+      "amount": 50000,
+      "status": "Pending",
+      "id": "XRVJ6QQ"
+    }
+  ],
+  "users": [
+    {
+      "id": "USR-001",
+      "name": "Priya Sharma",
+      "email": "priya@nexus.in",
+      "role": "Admin",
+      "status": "Active",
+      "joined": "Jan 2024"
+    },
+    {
+      "id": "USR-002",
+      "name": "Arjun Kumar",
+      "email": "arjun@nexus.in",
+      "role": "User",
+      "status": "Active",
+      "joined": "Feb 2024"
+    },
+    {
+      "id": "USR-003",
+      "name": "Meena Ravi",
+      "email": "meena@nexus.in",
+      "role": "User",
+      "status": "Inactive",
+      "joined": "Mar 2024"
+    }
+  ],
+  "user-invoices": [
+    {
+      "id": "INV-041",
+      "customer": "Rajesh Traders",
+      "date": "Mar 28",
+      "amount": 45000,
+      "status": "Paid"
+    },
+    {
+      "id": "INV-042",
+      "customer": "Meena Enterprises",
+      "date": "Mar 26",
+      "amount": 120000,
+      "status": "Sent"
+    },
+    {
+      "id": "INV-043",
+      "customer": "Karthik & Co",
+      "date": "Mar 24",
+      "amount": 78500,
+      "status": "Overdue"
+    },
+    {
+      "id": "INV-044",
+      "customer": "Sri Murugan Stores",
+      "date": "Mar 22",
+      "amount": 234000,
+      "status": "Pending"
+    },
+    {
+      "id": "INV-045",
+      "customer": "Anbu Industries",
+      "date": "Mar 20",
+      "amount": 56750,
+      "status": "Paid"
+    },
+    {
+      "customer": "Mahesh ",
+      "date": "12 May",
+      "amount": 8000000,
+      "status": "Pending",
+      "id": "adW_NXt"
+    },
+    {
+      "customer": "ramya",
+      "date": "12 May",
+      "amount": 30000,
+      "status": "Pending",
+      "id": "hN-Uzb9"
+    },
+    {
+      "customer": "Mahesh ",
+      "date": "12 May",
+      "amount": 67000,
+      "status": "Pending",
+      "id": "Z8UHl4W"
+    },
+    {
+      "customer": "ravya",
+      "date": "12 May",
+      "amount": 90000,
+      "status": "Sent",
+      "id": "D_OSpTV"
+    },
+    {
+      "customer": "affa",
+      "date": "12 May",
+      "amount": 98000,
+      "status": "Pending",
+      "id": "cX8NzKH"
+    }
+  ],
+  "expenses": [
+    {
+      "category": "Office Rent",
+      "vendor": "Krishna Properties",
+      "date": "Mar 1",
+      "amount": 50000,
+      "status": "Paid",
+      "id": "EXP-001"
+    },
+    {
+      "id": "EXP-002",
+      "category": "Internet & Phone",
+      "vendor": "BSNL / Airtel",
+      "date": "Mar 5",
+      "amount": 4500,
+      "status": "Paid"
+    },
+    {
+      "id": "EXP-003",
+      "category": "Software License",
+      "vendor": "Zoho Corporation",
+      "date": "Mar 8",
+      "amount": 12000,
+      "status": "Paid"
+    },
+    {
+      "id": "EXP-004",
+      "category": "Travel",
+      "vendor": "Self",
+      "date": "Mar 12",
+      "amount": 8200,
+      "status": "Pending"
+    },
+    {
+      "id": "EXP-005",
+      "category": "Staff Salary",
+      "vendor": "Payroll",
+      "date": "Mar 31",
+      "amount": 85000,
+      "status": "Pending"
+    }
+  ],
+  "gst": [
+    {
+      "id": 1,
+      "form": "GSTR-3B",
+      "period": "Mar 2024",
+      "due": "Apr 20",
+      "status": "Pending"
+    },
+    {
+      "id": 2,
+      "form": "GSTR-1",
+      "period": "Mar 2024",
+      "due": "Apr 11",
+      "status": "Pending"
+    },
+    {
+      "id": 3,
+      "form": "GSTR-3B",
+      "period": "Feb 2024",
+      "due": "Mar 20",
+      "status": "Paid"
+    },
+    {
+      "id": 4,
+      "form": "GSTR-1",
+      "period": "Feb 2024",
+      "due": "Mar 11",
+      "status": "Paid"
+    }
+  ],
+  "activity": [
+    {
+      "id": 1,
+      "time": "2 min ago",
+      "text": "Logged in successfully",
+      "icon": "🔐",
+      "color": "text-emerald-700"
+    },
+    {
+      "id": 2,
+      "time": "1 hr ago",
+      "text": "Invoice INV-045 marked as Paid",
+      "icon": "✅",
+      "color": "text-emerald-700"
+    },
+    {
+      "id": 3,
+      "time": "3 hrs ago",
+      "text": "New expense EXP-005 added",
+      "icon": "💸",
+      "color": "text-amber-700"
+    },
+    {
+      "id": 4,
+      "time": "Yesterday",
+      "text": "GSTR-3B filing initiated",
+      "icon": "📋",
+      "color": "text-blue-700"
+    },
+    {
+      "id": 5,
+      "time": "2 days ago",
+      "text": "Invoice INV-043 became overdue",
+      "icon": "⚠️",
+      "color": "text-red-700"
+    }
+  ],
+  "settings": [
+    {
+      "id": 1,
+      "companyName": "Nexus Technologies Pvt Ltd",
+      "gstin": "29AABCN1234A1Z5",
+      "pan": "AABCN1234A",
+      "fiscalYear": "April 1"
+    }
+  ]
+}
