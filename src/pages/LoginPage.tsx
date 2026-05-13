@@ -1,16 +1,17 @@
 import { useForm } from "react-hook-form";
-import { useDispatch } from "react-redux";
 import axios from "axios";
-import { login } from "../store/authSlice";
+import type { AuthUser } from "../types";
 
 type FormData = {
   emailOrUsername: string;
   password: string;
 };
 
-export default function LoginPage() {
-  const dispatch = useDispatch();
+interface LoginPageProps {
+  onLogin: (user: AuthUser) => void;
+}
 
+export default function LoginPage({ onLogin }: LoginPageProps) {
   const {
     register,
     handleSubmit,
@@ -26,7 +27,12 @@ export default function LoginPage() {
       });
 
       const user = response.data;
-      dispatch(login({ username: user.email, role: user.role }));
+
+      onLogin({
+        name:  user.name  ?? user.email,
+        email: user.email,
+        role:  user.role,
+      });
 
     } catch (error) {
       setError("password", { message: "Invalid credentials" });
@@ -36,7 +42,6 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4">
 
-      {/* Glow */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -left-40 w-96 h-96 bg-violet-600/20 rounded-full blur-3xl" />
         <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-pink-600/15 rounded-full blur-3xl" />
@@ -45,15 +50,12 @@ export default function LoginPage() {
       <div className="relative w-full max-w-md">
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 shadow-2xl shadow-black/50">
 
-          {/* Header */}
           <div className="mb-8">
-           
-            <p className="text-slate-500  text-2xl mt-1">Sign in to continue</p>
+            <p className="text-slate-500 text-2xl mt-1">Sign in to continue</p>
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-5">
 
-            {/* Email or Username */}
             <div>
               <label className="block text-xs font-semibold uppercase tracking-widest text-slate-500 mb-2">
                 Email or Username
@@ -71,7 +73,6 @@ export default function LoginPage() {
               )}
             </div>
 
-            {/* Password */}
             <div>
               <label className="block text-xs font-semibold uppercase tracking-widest text-slate-500 mb-2">
                 Password
@@ -89,7 +90,6 @@ export default function LoginPage() {
               )}
             </div>
 
-            {/* Button */}
             <button
               type="submit"
               className="w-full py-3 rounded-xl font-bold text-white bg-gradient-to-r from-violet-600 to-violet-500 hover:from-violet-500 hover:to-violet-400 shadow-lg shadow-violet-500/30 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-150 text-sm tracking-wide"
