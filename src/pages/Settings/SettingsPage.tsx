@@ -11,7 +11,7 @@ interface SettingsPageProps {
 }
 
 const COMPANY_FIELDS: { label: string; key: string; defaultValue: string }[] = [
-  { label: "Company Name", key: "companyName", defaultValue: "Nexus Technologies Pvt Ltd" },
+  { label: "Company Name", key: "companyName", defaultValue: "Nickname-Infotech" },
   { label: "GSTIN",        key: "gstin",       defaultValue: "29AABCN1234A1Z5"            },
   { label: "PAN",          key: "pan",          defaultValue: "AABCN1234A"                 },
   { label: "Fiscal Year",  key: "fiscalYear",   defaultValue: "April 1"                    },

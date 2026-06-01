@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import type { Activity } from "../../types/user";
-import type { AuthUser } from "../../types";
+import type { Activity, AuthUser } from "../../types";
 import { activityApi } from "../../services/userApi";
 
 interface ActivityPageProps {

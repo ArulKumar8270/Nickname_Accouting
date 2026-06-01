@@ -34,34 +34,6 @@
       "date": "Mar 10",
       "amount": 15000,
       "status": "Pending"
-    },
-    {
-      "vendor": "Amazon",
-      "date": "12 May",
-      "amount": 450000,
-      "status": "Pending",
-      "id": "XJPePL3"
-    },
-    {
-      "vendor": "Razorpay",
-      "date": "12 May",
-      "amount": 200000,
-      "status": "Pending",
-      "id": "fqeTPX-"
-    },
-    {
-      "vendor": "Zoho Corp",
-      "date": "12 May",
-      "amount": 540000,
-      "status": "Pending",
-      "id": "pflmOPf"
-    },
-    {
-      "vendor": "Amazon",
-      "date": "13 May",
-      "amount": 50000,
-      "status": "Pending",
-      "id": "XRVJ6QQ"
     }
   ],
   "users": [
@@ -160,6 +132,21 @@
       "amount": 98000,
       "status": "Pending",
       "id": "cX8NzKH"
+    },
+    {
+<<<<<<< Updated upstream
+      "customer": "afra",
+      "date": "22 May",
+      "amount": 78000,
+      "status": "Paid",
+      "id": "X6I5itQ"
+=======
+      "customer": "mac",
+      "date": "15 May",
+      "amount": 20000,
+      "status": "Pending",
+      "id": "91PYwi6"
+>>>>>>> Stashed changes
     }
   ],
   "expenses": [
@@ -274,10 +261,10 @@
   "settings": [
     {
       "id": 1,
-      "companyName": "Nexus Technologies Pvt Ltd",
+      "companyName": "Nickname-Infotech",
       "gstin": "29AABCN1234A1Z5",
       "pan": "AABCN1234A",
-      "fiscalYear": "April 1"
+      "fiscalYear": "April 23"
     }
   ]
 }

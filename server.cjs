@@ -6,6 +6,7 @@ const middlewares = jsonServer.defaults();
 server.use(middlewares);
 server.use(jsonServer.bodyParser);
 
+
 const USERS = [
   { email: "user1@gmail.com",        password: "pass123",  role: "user"  },
   { email: "user2@gmail.com",        password: "pass123",  role: "user"  },
@@ -15,7 +16,7 @@ const USERS = [
   { email: "user6@gmail.com",        password: "pass123",  role: "user"  },
   { email: "user7@gmail.com",        password: "pass123",  role: "user"  },
   { email: "user8@gmail.com",        password: "pass123",  role: "user"  },
-  { email: "user9@gmail.com",        password: "pass123",  role: "user"  },
+  { email: "aapi1329@gmail.com",     password: "pass123",  role: "user"  },
   { email: "rifayasafi11@gmail.com", password: "rifaya97", role: "user"  },
   { email: "admin@gmail.com",        password: "admin123", role: "admin" },
 ];

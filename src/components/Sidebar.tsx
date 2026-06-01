@@ -38,7 +38,11 @@ export default function Sidebar({
             {user.role === "Admin" ? "A" : "₹"}
           </div>
           <div>
-            <div className="text-slate-800 font-bold text-sm">NexusBooks</div>
+<<<<<<< Updated upstream
+            <div className="text-slate-800 font-bold text-sm">Nickname-Infotech</div>
+=======
+            <div className="text-slate-800 font-bold text-sm">Nickname Books</div>
+>>>>>>> Stashed changes
             <div className="text-slate-400 text-xs capitalize">{user.role} panel</div>
           </div>
         </div>
