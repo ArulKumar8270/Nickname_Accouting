@@ -1,21 +1,30 @@
-import { useSelector } from "react-redux";
-import type { RootState } from "./store/store";
-import LoginPage from "./pages/LoginPage";
+import { useState } from "react";
+import type { AuthUser } from "./types";
+
+import AdminDashboard from "./pages/AdminDashboard";
+import UserDashboard  from "./pages/UserDashboard";
+import LoginPage      from "./pages/LoginPage";
 
 export default function App() {
-  const { isLoggedIn, role } = useSelector((s: RootState) => s.auth);
+  const [user, setUser] = useState<AuthUser | null>(null);
 
-  
-  if (isLoggedIn && role === "admin") return (
-  <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
-    <h1 className="text-3xl font-bold">Welcome Admin! 👑</h1>
-  </div>
-);
+  const handleLogin = (u: AuthUser) => {
+    const normalized: AuthUser = {
+      ...u,
+      role: (u.role?.toLowerCase() === "admin" ? "Admin" : "User") as "Admin" | "User",
+    };
+    setUser(normalized);
+  };
 
-if (isLoggedIn && role === "user") return (
-  <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
-    <h1 className="text-3xl font-bold">Welcome User! 👋</h1>
-  </div>
-);
-  return <LoginPage />;
+  const handleLogout = () => setUser(null);
+
+  if (!user) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
+
+  if (user.role === "Admin") {
+    return <AdminDashboard user={user} onLogout={handleLogout} />;
+  }
+
+  return <UserDashboard user={user} onLogout={handleLogout} />;
 }
