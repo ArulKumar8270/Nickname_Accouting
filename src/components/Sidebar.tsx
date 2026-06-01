@@ -38,7 +38,7 @@ export default function Sidebar({
             {user.role === "Admin" ? "A" : "₹"}
           </div>
           <div>
-            <div className="text-slate-800 font-bold text-sm">NexusBooks</div>
+            <div className="text-slate-800 font-bold text-sm">Nickname-Infotech</div>
             <div className="text-slate-400 text-xs capitalize">{user.role} panel</div>
           </div>
         </div>
