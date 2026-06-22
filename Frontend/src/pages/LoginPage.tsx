@@ -4,9 +4,9 @@ import { authApi } from "../services/api";
 import type { AuthUser } from "../types";
 
 type FormData = {
-  name?:            string;
-  emailOrUsername:  string;
-  password:         string;
+  name?:           string;
+  emailOrUsername: string;
+  password:        string;
 };
 
 interface LoginPageProps {
@@ -25,18 +25,27 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     formState: { errors, isSubmitting },
   } = useForm<FormData>();
 
+  const handleSuccess = (user: { name?: string; email: string; role: string }) => {
+    const role = user.role?.toLowerCase() === "admin" ? "Admin" : "User";
+    onLogin({ name: user.name ?? user.email, email: user.email, role } as AuthUser);
+  };
+
   const onSubmit = async (data: FormData) => {
     try {
       if (isRegister) {
+        if (!data.name || data.name.trim().length < 2) {
+          setError("name", { message: "Please enter your full name (min 2 letters)" });
+          return;
+        }
         const user = await authApi.register(
-          data.name ?? data.emailOrUsername.split("@")[0],
+          data.name.trim(),
           data.emailOrUsername,
           data.password
         );
-        onLogin({ name: user.name ?? user.email, email: user.email, role: user.role });
+        handleSuccess(user);
       } else {
         const user = await authApi.login(data.emailOrUsername, data.password);
-        onLogin({ name: user.name ?? user.email, email: user.email, role: user.role });
+        handleSuccess(user);
       }
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? "Something went wrong";
@@ -45,6 +54,11 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   };
 
   const toggle = () => { setIsRegister((p) => !p); reset(); };
+
+  const emailPattern = {
+    value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+    message: "Please enter a valid email (example@gmail.com)"
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4">
@@ -73,11 +87,22 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                   Full Name
                 </label>
                 <input
-                  {...register("name", { required: isRegister ? "Name is required" : false })}
-                  placeholder="Enter your name"
+                  {...register("name", {
+                    required: "Full name is required",
+                    minLength: { value: 2, message: "Name must be at least 2 letters" },
+                    pattern: {
+                      value: /^[a-zA-Z\s]+$/,
+                      message: "Name must contain letters only"
+                    }
+                  })}
+                  placeholder="Enter your full name"
                   className="w-full bg-slate-800/60 border border-slate-700 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-600 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all"
                 />
-                {errors.name && <p className="text-pink-400 text-xs mt-1.5">{errors.name.message}</p>}
+                {errors.name && (
+                  <p className="text-pink-400 text-xs mt-1.5 font-medium">
+                    ⚠ {errors.name.message}
+                  </p>
+                )}
               </div>
             )}
 
@@ -86,12 +111,19 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                 Email
               </label>
               <input
-                {...register("emailOrUsername", { required: "Email is required" })}
-                placeholder="Enter email"
+                {...register("emailOrUsername", {
+                  required: "Email is required",
+                  pattern:  emailPattern
+                })}
+                placeholder="example@gmail.com"
                 autoComplete="off"
                 className="w-full bg-slate-800/60 border border-slate-700 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-600 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all"
               />
-              {errors.emailOrUsername && <p className="text-pink-400 text-xs mt-1.5">{errors.emailOrUsername.message}</p>}
+              {errors.emailOrUsername && (
+                <p className="text-pink-400 text-xs mt-1.5 font-medium">
+                  ⚠ {errors.emailOrUsername.message}
+                </p>
+              )}
             </div>
 
             <div>
@@ -101,8 +133,12 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}
-                  {...register("password", { required: "Password is required" })}
+                  {...register("password", {
+                    required:  "Password is required",
+                    minLength: { value: 6, message: "Password must be at least 6 characters" }
+                  })}
                   placeholder="Enter password"
+                  autoComplete="new-password"
                   className="w-full bg-slate-800/60 border border-slate-700 rounded-xl px-4 py-3 pr-12 text-slate-100 placeholder-slate-600 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all"
                 />
                 <button

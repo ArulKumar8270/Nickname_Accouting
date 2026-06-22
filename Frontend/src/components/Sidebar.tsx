@@ -20,6 +20,7 @@ interface SidebarProps {
 export default function Sidebar({
   navItems, page, setPage, user, onLogout, onClose, isMobile,
 }: SidebarProps) {
+  // Safe name initials — handles missing or short names
   const initials = (user.name ?? user.email ?? "U")
     .split(" ")
     .map((n) => n[0])

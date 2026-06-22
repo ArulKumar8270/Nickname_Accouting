@@ -14,17 +14,18 @@ api.interceptors.request.use((config) => {
 
 /* ── Auth ── */
 export const authApi = {
-  login: (email: string, password: string) =>
-    axios.post(`${BASE}/auth/login`, { email, password }).then((r) => {
-      localStorage.setItem("token", r.data.token);
-      return r.data;
-    }),
+  login: async (email: string, password: string) => {
+    const r = await axios.post(`${BASE}/auth/login`, { email, password });
+    localStorage.setItem("token", r.data.token);
+    return r.data;
+  },
 
-  register: (name: string, email: string, password: string) =>
-    axios.post(`${BASE}/auth/register`, { name, email, password, role: "User" }).then((r) => {
-      localStorage.setItem("token", r.data.token);
-      return r.data;
-    }),
+  
+  register: async (name: string, email: string, password: string) => {
+    const r = await axios.post(`${BASE}/auth/register`, { name, email, password });
+    localStorage.setItem("token", r.data.token);
+    return r.data;
+  },
 
   logout: () => localStorage.removeItem("token"),
 };
